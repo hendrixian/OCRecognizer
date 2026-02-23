@@ -1,4 +1,4 @@
-.result-container {
+﻿.result-container {
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -11,7 +11,7 @@
   backdrop-filter: blur(5px);
   border-radius: 2rem;
   padding: 2.5rem 2rem;
-  max-width: 800px;
+  max-width: 1100px;
   width: 100%;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   border: 1px solid #000000;
@@ -95,6 +95,54 @@
   border-bottom: 2px solid #F8F3CE;
   padding-bottom: 1rem;
   display: inline-block;
+}
+
+.result-body {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.result-body.no-image {
+  grid-template-columns: 1fr;
+}
+
+.result-image-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.result-image-label {
+  color: #F8F3CE;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.85;
+}
+
+.result-image-frame {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 1.2rem;
+  border: 1px solid rgba(248, 243, 206, 0.2);
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+.result-image {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 0.9rem;
+  display: block;
+}
+
+.result-info-panel .scanned-info {
+  margin: 0;
 }
 
 .scanned-info {
@@ -243,6 +291,16 @@
   margin-top: 0.5rem;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+@media (max-width: 900px) {
+  .result-body {
+    grid-template-columns: 1fr;
+  }
+
+  .result-image {
+    max-height: 320px;
+  }
 }
 
 @media (max-width: 640px) {

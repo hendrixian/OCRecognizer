@@ -1,7 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import './ScanResult.css';
 
-const ScanResult = ({ onBack, onNewScan, scannedData }) => {
+const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
   // Mock data - this will come from your backend/ML model
   const resultData = scannedData || {
     nrcNumber: "12/OUKAMA(N)123456",
@@ -19,6 +19,7 @@ const ScanResult = ({ onBack, onNewScan, scannedData }) => {
     resultData.nrcNumberBurmese ||
     resultData.rawDigits ||
     '';
+  const hasImage = Boolean(scannedImage);
 
   return (
     <div className="result-container">
@@ -46,59 +47,72 @@ const ScanResult = ({ onBack, onNewScan, scannedData }) => {
           <h2>SHOW SCANNED TEXT HERE</h2>
         </div>
 
-        {/* Scanned Information Display */}
-        <div className="scanned-info">
-          {/* NRC Number - Most important */}
-          <div className="info-card highlight">
-            <div className="info-label">NRC Number</div>
-            <div className="info-value">{nrcNumberDisplay}</div>
-            <div className="info-copy" onClick={() => navigator.clipboard.writeText(nrcNumberDisplay)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="4" y="8" width="12" height="12" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M8 4V6H16V16H18V4H8Z" fill="currentColor"/>
-              </svg>
+        <div className={`result-body ${hasImage ? 'with-image' : 'no-image'}`}>
+          {hasImage && (
+            <div className="result-image-panel">
+              <div className="result-image-label">Scanned Image</div>
+              <div className="result-image-frame">
+                <img src={scannedImage} alt="Scanned document" className="result-image" />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Personal Information Grid */}
-          <div className="info-grid">
-            <div className="info-item">
-              <div className="info-label">Full Name</div>
-              <div className="info-value">{resultData.name}</div>
-            </div>
+          <div className="result-info-panel">
+            {/* Scanned Information Display */}
+            <div className="scanned-info">
+              {/* NRC Number - Most important */}
+              <div className="info-card highlight">
+                <div className="info-label">NRC Number</div>
+                <div className="info-value">{nrcNumberDisplay}</div>
+                <div className="info-copy" onClick={() => navigator.clipboard.writeText(nrcNumberDisplay)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="4" y="8" width="12" height="12" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M8 4V6H16V16H18V4H8Z" fill="currentColor"/>
+                  </svg>
+                </div>
+              </div>
 
-            <div className="info-item">
-              <div className="info-label">Date of Birth</div>
-              <div className="info-value">{resultData.birthDate}</div>
-            </div>
+              {/* Personal Information Grid */}
+              <div className="info-grid">
+                <div className="info-item">
+                  <div className="info-label">Full Name</div>
+                  <div className="info-value">{resultData.name}</div>
+                </div>
 
-            <div className="info-item">
-              <div className="info-label">Father's Name</div>
-              <div className="info-value">{resultData.fatherName}</div>
-            </div>
+                <div className="info-item">
+                  <div className="info-label">Date of Birth</div>
+                  <div className="info-value">{resultData.birthDate}</div>
+                </div>
 
-            <div className="info-item">
-              <div className="info-label">Mother's Name</div>
-              <div className="info-value">{resultData.motherName}</div>
-            </div>
-          </div>
+                <div className="info-item">
+                  <div className="info-label">Father's Name</div>
+                  <div className="info-value">{resultData.fatherName}</div>
+                </div>
 
-          {/* Address - Full width */}
-          <div className="info-item full-width">
-            <div className="info-label">Address</div>
-            <div className="info-value">{resultData.address}</div>
-          </div>
+                <div className="info-item">
+                  <div className="info-label">Mother's Name</div>
+                  <div className="info-value">{resultData.motherName}</div>
+                </div>
+              </div>
 
-          {/* Date Information Grid */}
-          <div className="info-grid">
-            <div className="info-item">
-              <div className="info-label">Issue Date</div>
-              <div className="info-value">{resultData.issueDate}</div>
-            </div>
+              {/* Address - Full width */}
+              <div className="info-item full-width">
+                <div className="info-label">Address</div>
+                <div className="info-value">{resultData.address}</div>
+              </div>
 
-            <div className="info-item">
-              <div className="info-label">Expiry Date</div>
-              <div className="info-value">{resultData.expiryDate}</div>
+              {/* Date Information Grid */}
+              <div className="info-grid">
+                <div className="info-item">
+                  <div className="info-label">Issue Date</div>
+                  <div className="info-value">{resultData.issueDate}</div>
+                </div>
+
+                <div className="info-item">
+                  <div className="info-label">Expiry Date</div>
+                  <div className="info-value">{resultData.expiryDate}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import './App.css';
 import NrcScanner from './NrcScannerHome';
 import PhotoUpload from './PhotoUpload';
@@ -9,6 +9,8 @@ import Squares from './Squares';
 function App() {
   const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'photo' | 'camera' | 'result'
   const [scannedData, setScannedData] = useState(null);
+  const [scannedImage, setScannedImage] = useState(null);
+
   const handlePhotoClick = () => {
     setCurrentPage('photo');
   };
@@ -17,15 +19,20 @@ function App() {
   };
 
   const handleBackToHome = () => {
+    setScannedData(null);
+    setScannedImage(null);
     setCurrentPage('home');
   };
 
-  const handleScanComplete = (data) => {
+  const handleScanComplete = (data, imageDataUrl) => {
     setScannedData(data);
+    setScannedImage(imageDataUrl || null);
     setCurrentPage('result');
   };
+
   const handleNewScan = () => {
     setScannedData(null);
+    setScannedImage(null);
     setCurrentPage('photo');
   };
 
@@ -59,6 +66,7 @@ function App() {
             onBack={handleBackToHome}
             onNewScan={handleNewScan}
             scannedData={scannedData}
+            scannedImage={scannedImage}
           />
         )}
       </div>

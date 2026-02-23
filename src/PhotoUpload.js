@@ -70,7 +70,7 @@ const PhotoUpload = ({ onBack, onScanComplete }) => {
     try {
       const apiResult = await scanNrcFromDataUrl(selectedImage);
       const uiResult = toUiScanResult(apiResult);
-      onScanComplete(uiResult);
+      onScanComplete(uiResult, selectedImage);
     } catch (err) {
       console.error(err);
       alert(err?.message || 'Scan failed. Please try again.');
