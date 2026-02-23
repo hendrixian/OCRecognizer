@@ -1,0 +1,178 @@
+import React, { useState, useRef } from 'react';
+import './PhotoUpload.css';
+
+const PhotoUpload = ({ onBack, onScanComplete }) => {
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      handleFile(file);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      handleFile(file);
+    }
+  };
+
+  const handleFile = (file) => {
+    // Check if file is an image
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSelectedImage(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      alert('Please select an image file (JPG or PNG)');
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle scan button click
+  const handleScan = () => {
+    if (!selectedImage) return;
+    
+    setIsScanning(true);
+    
+    // Simulate API call to your backend ML model
+    setTimeout(() => {
+      // Mock data - replace with actual response from your backend
+      const mockScannedData = {
+        nrcNumber: "12/OUKAMA(N)123456",
+        name: "THANT ZIN",
+        birthDate: "15.05.1990",
+        fatherName: "U MYA",
+        motherName: "Daw AYE",
+        address: "No.123, Yangon-Insein Road, Hlaing Township, Yangon",
+        issueDate: "20.01.2020",
+        expiryDate: "19.01.2030",
+        confidence: 0.95
+      };
+      
+      // Call the onScanComplete prop with the data
+      onScanComplete(mockScannedData);
+      setIsScanning(false);
+    }, 2000);
+  };
+
+  return (
+    <div className="photo-upload-container">
+      <div className="upload-card">
+        {/* Header with back button and title */}
+        <div className="upload-header">
+          <button className="back-button" onClick={onBack}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#F8F3CE" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <h1 className="upload-title">NRC SCANNER</h1>
+          <div className="title-underline"></div>
+        </div>
+
+        {/* File format indicator */}
+        <div className="file-format-badge">
+          <span className="file-format">File Format: JPG, PNG</span>
+        </div>
+
+        {/* Instruction text */}
+        <p className="upload-instruction">
+          Please drag or input your photo here
+        </p>
+
+        {/* Upload area */}
+        <div
+          className={`upload-area ${dragActive ? 'drag-active' : ''} ${selectedImage ? 'has-image' : ''}`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          onClick={selectedImage ? null : triggerFileInput}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+
+          {selectedImage ? (
+            <div className="image-preview-container">
+              <img src={selectedImage} alt="Preview" className="image-preview" />
+              <button className="remove-image-btn" onClick={removeImage}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 6L6 18M6 6L18 18" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div className="upload-placeholder">
+              <div className="upload-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="5" width="20" height="16" rx="2" stroke="#F8F3CE" strokeWidth="1.5"/>
+                  <circle cx="17" cy="10" r="2" stroke="#F8F3CE" strokeWidth="1.5"/>
+                  <path d="M4 18L8 12L12 15L16 10L20 15" stroke="#F8F3CE" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M16 5L19 2" stroke="#F8F3CE" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <p className="drag-text">Drag & drop your image here</p>
+              <p className="or-text">or</p>
+              <button className="browse-btn" onClick={triggerFileInput}>
+                Browse Files
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        {selectedImage && (
+          <div className="action-buttons">
+            <button 
+              className="scan-btn" 
+              onClick={handleScan}
+              disabled={isScanning}
+            >
+              {isScanning ? 'Scanning...' : 'Scan Document'}
+            </button>
+            <button className="change-btn" onClick={removeImage}>
+              Choose Different
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PhotoUpload;

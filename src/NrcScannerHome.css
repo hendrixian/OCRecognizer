@@ -1,0 +1,160 @@
+.nrc-scanner-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  /*background: radial-gradient(circle at 20% 30%, #1a4a34, #062015);*/
+}
+
+/* main card */
+.scanner-card {
+  /*background-color: #1e2e26;*/
+  background-color: rgba(116, 116, 116, 0.6); /* Made slightly transparent */
+  backdrop-filter: blur(5px); /* Adds a blur effect behind the card */
+  border-radius: 2rem;
+  padding: 2.5rem 2rem;
+  max-width: 700px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border: 1px solid #000000;
+  transition: all 0.2s ease;
+}
+
+/* header with title and underline */
+.header {
+  text-align: left;
+  margin-bottom: 1.75rem;
+}
+
+.title {
+  color: #040202;
+  font-size: 2.2rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+}
+
+.title-underline {
+  height: 4px;
+  width: 70px;
+  background: #F8F3CE;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+/* instruction text */
+.instruction {
+  color: #011208;
+  font-size: 1.1rem;
+  margin-bottom: 2.5rem;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  border-left: 3px solid #F8F3CE;
+  padding-left: 1rem;
+}
+
+/* options grid */
+.options-grid {
+  display: flex;
+  flex-direction:row;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: nowrap;
+  margin-bottom: 1rem;
+}
+
+/* individual option cards */
+.option-card {
+  background-color: rgba(116, 116, 116, 0.6); /* Made slightly transparent */
+  border: 2px solid #000000;
+  border-radius: 2rem;
+  padding: 2.5rem 1.5rem;
+  flex: 0 1 auto;
+  width:240px;
+  max-width: 240px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 0 #747474;
+  outline: none;
+}
+
+.option-card:hover {
+  transform: translateY(-4px);
+  border-color: #F8F3CE;
+  box-shadow: 0 12px 0 #0e1f16b9;
+}
+
+.option-card:active {
+  transform: translateY(4px);
+  box-shadow: 0 4px 0 #0e1f16;
+}
+
+.option-card.selected {
+  border-color: #F8F3CE;
+  background: #747474;
+  box-shadow: 0 0 0 2px #dcdcdc, 0 8px 0 #0e1f16;
+}
+
+/* icon container */
+.icon-container {
+  color: #F8F3CE;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.option-icon {
+  width: 100%;
+  height: 100%;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* label under icon */
+.option-label {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 0 #0e1f16;
+}
+
+/* footer hint */
+.footer-hint {
+  height: 8px;
+  margin-top: 1rem;
+}
+
+/* small screen adjustment */
+@media (max-width: 480px) {
+  .scanner-card {
+    padding: 1.5rem 1rem;
+    border-radius: 1.5rem;
+  }
+  .title {
+    font-size: 1.8rem;
+  }
+  .option-card {
+    padding: 1.5rem 1rem;
+    max-width: 160px;
+  }
+  .option-label {
+    font-size: 1.2rem;
+  }
+  .icon-container {
+    width: 60px;
+    height: 60px;
+  }
+}
