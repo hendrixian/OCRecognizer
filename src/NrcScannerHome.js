@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './NrcScannerHome.css';
 
-const NrcScanner = ({onPhotoClick}) => {
+const NrcScanner = ({onPhotoClick, onCameraClick}) => {
   const [selectedFormat, setSelectedFormat] = useState(null);
 
   return (
@@ -29,7 +29,12 @@ const NrcScanner = ({onPhotoClick}) => {
             }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && setSelectedFormat('photo')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setSelectedFormat('photo');
+                onPhotoClick();
+              }
+            }}
           >
             <div className="icon-container">
               {/* Photo icon (camera + mountain landscape) */}
@@ -76,10 +81,18 @@ const NrcScanner = ({onPhotoClick}) => {
           {/* Camera card */}
           <div
             className={`option-card ${selectedFormat === 'camera' ? 'selected' : ''}`}
-            onClick={() => setSelectedFormat('camera')}
+            onClick={() => {
+              setSelectedFormat('camera');
+              if (onCameraClick) onCameraClick();
+            }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && setSelectedFormat('camera')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setSelectedFormat('camera');
+                if (onCameraClick) onCameraClick();
+              }
+            }}
           >
             <div className="icon-container">
               {/* Camera icon (classic camera body) */}

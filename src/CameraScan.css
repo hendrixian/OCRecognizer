@@ -1,0 +1,238 @@
+.camera-scan-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.camera-card {
+  background-color: rgba(116, 116, 116, 0.6);
+  backdrop-filter: blur(5px);
+  border-radius: 2rem;
+  padding: 2.5rem 2rem;
+  max-width: 900px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border: 1px solid #000000;
+  transition: all 0.2s ease;
+}
+
+.camera-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.camera-title {
+  color: #040202;
+  font-size: 2.2rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+}
+
+.camera-subtitle {
+  color: #011208;
+  font-size: 1.05rem;
+  margin-bottom: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  border-left: 3px solid #F8F3CE;
+  padding-left: 1rem;
+}
+
+.camera-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.camera-select {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: #F8F3CE;
+  font-weight: 500;
+}
+
+.camera-select label {
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+}
+
+.camera-select select {
+  background: rgba(0, 0, 0, 0.4);
+  color: #F8F3CE;
+  border: 1px solid rgba(248, 243, 206, 0.4);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  min-width: 220px;
+}
+
+.camera-link-btn {
+  background: transparent;
+  color: #F8F3CE;
+  border: 1px solid rgba(248, 243, 206, 0.6);
+  border-radius: 1rem;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.camera-link-btn:hover {
+  background: rgba(248, 243, 206, 0.15);
+}
+
+.camera-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.scan-toggle-btn {
+  background: rgba(0, 0, 0, 0.35);
+  color: #F8F3CE;
+  border: 1px solid rgba(248, 243, 206, 0.5);
+  padding: 0.9rem 1.4rem;
+  border-radius: 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scan-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.camera-stage {
+  position: relative;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(248, 243, 206, 0.7);
+  border-radius: 1.5rem;
+  overflow: hidden;
+  min-height: 240px;
+}
+
+.camera-video,
+.camera-overlay,
+.camera-capture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.camera-video {
+  object-fit: contain;
+  z-index: 1;
+}
+
+.camera-overlay {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.camera-capture {
+  display: none;
+}
+
+.camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F8F3CE;
+  font-size: 1rem;
+  z-index: 3;
+  text-align: center;
+  padding: 1rem;
+}
+
+.camera-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.status-pill {
+  background: rgba(0, 0, 0, 0.3);
+  color: #F8F3CE;
+  padding: 0.4rem 0.9rem;
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  border: 1px solid rgba(248, 243, 206, 0.3);
+}
+
+.status-pill.live {
+  border-color: #F8F3CE;
+  box-shadow: 0 0 12px rgba(248, 243, 206, 0.4);
+}
+
+.status-text {
+  color: #F8F3CE;
+  opacity: 0.8;
+  font-size: 0.95rem;
+}
+
+.camera-results {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.result-block {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(248, 243, 206, 0.2);
+}
+
+.camera-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.camera-error {
+  margin-top: 1rem;
+  color: #ffdddd;
+  background: rgba(120, 0, 0, 0.3);
+  border: 1px solid rgba(255, 0, 0, 0.4);
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+}
+
+@media (max-width: 800px) {
+  .camera-results {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .camera-card {
+    padding: 1.5rem 1rem;
+  }
+
+  .camera-title {
+    font-size: 1.8rem;
+  }
+}

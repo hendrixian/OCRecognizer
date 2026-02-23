@@ -2,14 +2,18 @@ import React, { useState } from 'react';
 import './App.css';
 import NrcScanner from './NrcScannerHome';
 import PhotoUpload from './PhotoUpload';
+import CameraScan from './CameraScan';
 import ScanResult from './ScanResult';
 import Squares from './Squares';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('home'); // 'home' or 'photo'
+  const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'photo' | 'camera' | 'result'
   const [scannedData, setScannedData] = useState(null);
   const handlePhotoClick = () => {
     setCurrentPage('photo');
+  };
+  const handleCameraClick = () => {
+    setCurrentPage('camera');
   };
 
   const handleBackToHome = () => {
@@ -36,17 +40,26 @@ function App() {
       />
       <div className="content-wrapper">
         {currentPage === 'home' ? (
-          <NrcScanner onPhotoClick={handlePhotoClick} />
-        ) : (
-          <PhotoUpload onBack={handleBackToHome}
-                       onScanComplete={handleScanComplete} />
+          <NrcScanner onPhotoClick={handlePhotoClick} onCameraClick={handleCameraClick} />
+        ) : null}
+        {currentPage === 'photo' && (
+          <PhotoUpload
+            onBack={handleBackToHome}
+            onScanComplete={handleScanComplete}
+          />
         )}
-        {currentPage === 'result' &&(
-          <ScanResult 
-             onBack={handleBackToHome}
-             onNewScan={handleNewScan}
-             scannedData={scannedData}
-            />
+        {currentPage === 'camera' && (
+          <CameraScan
+            onBack={handleBackToHome}
+            onScanComplete={handleScanComplete}
+          />
+        )}
+        {currentPage === 'result' && (
+          <ScanResult
+            onBack={handleBackToHome}
+            onNewScan={handleNewScan}
+            scannedData={scannedData}
+          />
         )}
       </div>
     </div>

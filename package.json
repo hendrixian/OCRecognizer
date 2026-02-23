@@ -1,7 +1,14 @@
 {
-  "name": "nrc-scanner-app",
-  "version": "0.1.0",
+  "name": "ocr-recognizer",
+  "version": "1.0.0",
   "private": true,
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "description": "Burmese NRC Recognizer built with Electron and React",
+  "homepage": "./",
+  "main": "main.js",
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -12,12 +19,26 @@
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-devtools-installer": "^3.2.0",
+    "wait-on": "^7.2.0"
+  },
   "scripts": {
     "start": "react-scripts start",
-     "dev": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "electron": "electron .",
+    "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron-build": "npm run build && electron-builder",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "pack": "npm run build && electron-builder --dir",
+    "ocr:server": "python -m uvicorn app:app --app-dir python --host 127.0.0.1 --port 4891"
   },
   "eslintConfig": {
     "extends": [
@@ -36,5 +57,54 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "build": {
+    "appId": "com.yourname.ocrrecognizer",
+    "productName": "OCRecgnizer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "main.js",
+      "preload.js",
+      "electron/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python"
+      },
+      {
+        "from": "models",
+        "to": "models"
+      }
+    ],
+    "asarUnpack": [
+      "python/**",
+      "models/**"
+    ],
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OCRecgnizer"
+    }
   }
 }

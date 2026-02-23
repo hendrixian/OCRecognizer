@@ -1,5 +1,7 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import './PhotoUpload.css';
+import { scanNrcFromDataUrl } from './services/ocrService';
+import { toUiScanResult } from './services/scanResultAdapter';
 
 const PhotoUpload = ({ onBack, onScanComplete }) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -60,30 +62,21 @@ const PhotoUpload = ({ onBack, onScanComplete }) => {
   };
 
   // Handle scan button click
-  const handleScan = () => {
-    if (!selectedImage) return;
-    
+  const handleScan = async () => {
+    if (!selectedImage || isScanning) return;
+
     setIsScanning(true);
-    
-    // Simulate API call to your backend ML model
-    setTimeout(() => {
-      // Mock data - replace with actual response from your backend
-      const mockScannedData = {
-        nrcNumber: "12/OUKAMA(N)123456",
-        name: "THANT ZIN",
-        birthDate: "15.05.1990",
-        fatherName: "U MYA",
-        motherName: "Daw AYE",
-        address: "No.123, Yangon-Insein Road, Hlaing Township, Yangon",
-        issueDate: "20.01.2020",
-        expiryDate: "19.01.2030",
-        confidence: 0.95
-      };
-      
-      // Call the onScanComplete prop with the data
-      onScanComplete(mockScannedData);
+
+    try {
+      const apiResult = await scanNrcFromDataUrl(selectedImage);
+      const uiResult = toUiScanResult(apiResult);
+      onScanComplete(uiResult);
+    } catch (err) {
+      console.error(err);
+      alert(err?.message || 'Scan failed. Please try again.');
+    } finally {
       setIsScanning(false);
-    }, 2000);
+    }
   };
 
   return (

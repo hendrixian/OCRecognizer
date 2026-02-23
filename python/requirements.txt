@@ -1,0 +1,9 @@
+﻿# Python service dependencies for NRC OCR
+fastapi
+uvicorn
+python-multipart
+numpy
+opencv-python
+torch
+ultralytics
+pydantic

@@ -14,6 +14,11 @@ const ScanResult = ({ onBack, onNewScan, scannedData }) => {
     expiryDate: "19.01.2030",
     confidence: 0.95
   };
+  const nrcNumberDisplay =
+    resultData.nrcNumber ||
+    resultData.nrcNumberBurmese ||
+    resultData.rawDigits ||
+    '';
 
   return (
     <div className="result-container">
@@ -46,8 +51,8 @@ const ScanResult = ({ onBack, onNewScan, scannedData }) => {
           {/* NRC Number - Most important */}
           <div className="info-card highlight">
             <div className="info-label">NRC Number</div>
-            <div className="info-value">{resultData.nrcNumber}</div>
-            <div className="info-copy" onClick={() => navigator.clipboard.writeText(resultData.nrcNumber)}>
+            <div className="info-value">{nrcNumberDisplay}</div>
+            <div className="info-copy" onClick={() => navigator.clipboard.writeText(nrcNumberDisplay)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="4" y="8" width="12" height="12" rx="1" stroke="currentColor" strokeWidth="1.5"/>
                 <path d="M8 4V6H16V16H18V4H8Z" fill="currentColor"/>
