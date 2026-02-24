@@ -1,0 +1,16 @@
+{
+  "num_models": 2,
+  "model_names": [
+    "mobilenet",
+    "resnet"
+  ],
+  "classes": [
+    "A",
+    "AB",
+    "B",
+    "O",
+    "null"
+  ],
+  "voting": "average",
+  "conversion_date": "2026-02-24 13:49:16"
+}

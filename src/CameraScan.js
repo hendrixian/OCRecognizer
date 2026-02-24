@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './CameraScan.css';
 import { scanNrcFromDataUrl } from './services/ocrService';
+import { classifyBloodTypeFromFrame } from './services/bloodTypeService';
 import { toUiScanResult, DEFAULT_SCAN_RESULT } from './services/scanResultAdapter';
 
 const SCAN_INTERVAL_MS = 500;
@@ -28,6 +29,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
     lastResult?.nrcNumberBurmese ||
     lastResult?.rawDigits ||
     '';
+  const hasUsableResult = Boolean(nrcNumberDisplay || lastResult?.bloodType);
 
   const clearOverlay = () => {
     const overlay = overlayRef.current;
@@ -219,7 +221,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
   };
 
   const handleUseResult = () => {
-    if (!onScanComplete || !nrcNumberDisplay) return;
+    if (!onScanComplete || !hasUsableResult) return;
     onScanComplete(lastResult);
   };
 
@@ -246,7 +248,19 @@ const CameraScan = ({ onBack, onScanComplete }) => {
             scanStateRef.current.lastScan = now;
             try {
               const apiResult = await scanNrcFromDataUrl(dataUrl);
-              const uiResult = toUiScanResult(apiResult);
+              const bloodTypeResult = await classifyBloodTypeFromFrame(dataUrl, apiResult).catch((err) => {
+                console.error('[blood-type] inference failed', err);
+                return null;
+              });
+              const mergedResult = bloodTypeResult
+                ? {
+                    ...apiResult,
+                    bloodType: bloodTypeResult.bloodType,
+                    bloodTypeConfidence: bloodTypeResult.bloodTypeConfidence,
+                    bloodTypeTop: bloodTypeResult.bloodTypeTop
+                  }
+                : apiResult;
+              const uiResult = toUiScanResult(mergedResult);
               setLastResult(uiResult);
               setLastUpdated(new Date());
               const regionBoxes = apiResult?.regionBoxes || apiResult?.areaBoxes || [];
@@ -373,16 +387,15 @@ const CameraScan = ({ onBack, onScanComplete }) => {
           <div className="result-block">
             <div className="info-label">Last Update</div>
             <div className="info-value">
-              {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'}
+              {lastUpdated ? lastUpdated.toLocaleTimeString() : '-'}
             </div>
           </div>
         </div>
-
         <div className="camera-footer">
           <button
             className="secondary-btn"
             onClick={handleUseResult}
-            disabled={!nrcNumberDisplay}
+            disabled={!hasUsableResult}
           >
             Use Current Result
           </button>
@@ -402,3 +415,5 @@ const CameraScan = ({ onBack, onScanComplete }) => {
 };
 
 export default CameraScan;
+
+

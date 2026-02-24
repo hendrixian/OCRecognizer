@@ -328,6 +328,16 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
               {/* Personal Information Grid */}
               <div className="info-grid">
                 <div className="info-item">
+                  <div className="info-label">Blood Type</div>
+                  <div className="info-value">
+                    {resultData.bloodType || '-'}
+                    {typeof resultData.bloodTypeConfidence === 'number'
+                      ? ` (${Math.round(resultData.bloodTypeConfidence * 100)}%)`
+                      : ''}
+                  </div>
+                </div>
+
+                <div className="info-item">
                   <div className="info-label">Full Name</div>
                   <div className="info-value">{resultData.name}</div>
                 </div>

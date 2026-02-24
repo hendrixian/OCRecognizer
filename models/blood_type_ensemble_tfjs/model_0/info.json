@@ -1,0 +1,11 @@
+{
+  "name": "mobilenet",
+  "index": 0,
+  "classes": [
+    "A",
+    "AB",
+    "B",
+    "O",
+    "null"
+  ]
+}

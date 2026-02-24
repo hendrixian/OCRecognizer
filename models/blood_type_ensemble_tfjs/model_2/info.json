@@ -1,0 +1,12 @@
+{
+  "name": "efficientnet",
+  "index": 2,
+  "original_file": "model_0.keras",
+  "classes": [
+    "A",
+    "AB",
+    "B",
+    "O",
+    "null"
+  ]
+}

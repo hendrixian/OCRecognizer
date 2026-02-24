@@ -7,6 +7,9 @@ MODELS_DIR = Path(os.getenv('OCR_MODELS_DIR', ROOT_DIR / 'models')).resolve()
 YOLO_WEIGHTS = Path(os.getenv('OCR_YOLO_WEIGHTS', MODELS_DIR / 'best.pt')).resolve()
 AREA_YOLO_WEIGHTS = Path(os.getenv('OCR_AREA_YOLO_WEIGHTS', MODELS_DIR / 'best_area.pt')).resolve()
 CRNN_WEIGHTS = Path(os.getenv('OCR_CRNN_WEIGHTS', MODELS_DIR / 'crnn_burmese.pth')).resolve()
+BLOOD_TYPE_MODEL_DIR = Path(
+    os.getenv('OCR_BLOOD_TYPE_MODEL_DIR', MODELS_DIR / 'blood_type_model_tfjs')
+).resolve()
 
 IMG_HEIGHT = int(os.getenv('OCR_IMG_HEIGHT', '32'))
 IMG_WIDTH = int(os.getenv('OCR_IMG_WIDTH', '128'))
