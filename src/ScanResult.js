@@ -1,7 +1,10 @@
-﻿import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import './ScanResult.css';
 
 const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
+  const imageRef = useRef(null);
+  const overlayRef = useRef(null);
+
   // Mock data - this will come from your backend/ML model
   const resultData = scannedData || {
     nrcNumber: "12/OUKAMA(N)123456",
@@ -20,6 +23,115 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     resultData.rawDigits ||
     '';
   const hasImage = Boolean(scannedImage);
+  const regionBoxes = resultData?.regionBoxes || resultData?.areaBoxes || [];
+  const digitBoxes = resultData?.boxes || [];
+
+  const buildDigitLabel = (box) => {
+    const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
+    const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
+    if (cls === null) return '';
+    return `${cls}${conf !== null ? ` ${conf}%` : ''}`;
+  };
+
+  const buildRegionLabel = (box) => {
+    const label = typeof box.label === 'string' ? box.label : '';
+    const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
+    const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
+    const base = label || (cls !== null ? `region_${cls}` : '');
+    if (!base) return '';
+    return `${base}${conf !== null ? ` ${conf}%` : ''}`;
+  };
+
+  const drawBoxes = (ctx, boxes = [], scaleX, scaleY, options = {}) => {
+    if (!Array.isArray(boxes) || boxes.length === 0) return;
+
+    const {
+      strokeStyle = '#F8F3CE',
+      lineWidth = 2,
+      font = '14px "Inter", system-ui, sans-serif',
+      labelColor = '#F8F3CE',
+      labelBackground = 'rgba(0, 0, 0, 0.55)',
+      labelBuilder
+    } = options;
+
+    ctx.save();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+    ctx.font = font;
+
+    boxes.forEach((box) => {
+      const x1 = Math.max(0, box.x1 * scaleX);
+      const y1 = Math.max(0, box.y1 * scaleY);
+      const x2 = Math.max(0, box.x2 * scaleX);
+      const y2 = Math.max(0, box.y2 * scaleY);
+      const w = Math.max(0, x2 - x1);
+      const h = Math.max(0, y2 - y1);
+
+      ctx.strokeRect(x1, y1, w, h);
+
+      const label = typeof labelBuilder === 'function' ? labelBuilder(box) : '';
+      if (label) {
+        const padding = 4;
+        const textWidth = ctx.measureText(label).width;
+        const textX = x1;
+        const textY = Math.max(0, y1 - 18);
+        ctx.fillStyle = labelBackground;
+        ctx.fillRect(textX, textY, textWidth + padding * 2, 18);
+        ctx.fillStyle = labelColor;
+        ctx.fillText(label, textX + padding, textY + 13);
+      }
+    });
+
+    ctx.restore();
+  };
+
+  const drawOverlay = () => {
+    const img = imageRef.current;
+    const canvas = overlayRef.current;
+    if (!img || !canvas) return;
+
+    const { clientWidth, clientHeight, naturalWidth, naturalHeight } = img;
+    if (!clientWidth || !clientHeight || !naturalWidth || !naturalHeight) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(clientWidth * dpr);
+    canvas.height = Math.round(clientHeight * dpr);
+    canvas.style.width = `${clientWidth}px`;
+    canvas.style.height = `${clientHeight}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, clientWidth, clientHeight);
+
+    if ((!regionBoxes || regionBoxes.length === 0) && (!digitBoxes || digitBoxes.length === 0)) {
+      return;
+    }
+
+    const scaleX = clientWidth / naturalWidth;
+    const scaleY = clientHeight / naturalHeight;
+
+    drawBoxes(ctx, regionBoxes, scaleX, scaleY, {
+      strokeStyle: '#6EF2C4',
+      lineWidth: 3,
+      labelColor: '#061A12',
+      labelBackground: 'rgba(110, 242, 196, 0.75)',
+      labelBuilder: buildRegionLabel
+    });
+
+    drawBoxes(ctx, digitBoxes, scaleX, scaleY, {
+      strokeStyle: '#F8F3CE',
+      lineWidth: 1.5,
+      labelBuilder: buildDigitLabel
+    });
+  };
+
+  useEffect(() => {
+    if (!hasImage) return;
+    const handleResize = () => drawOverlay();
+    window.addEventListener('resize', handleResize);
+    drawOverlay();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [hasImage, scannedImage, scannedData]);
 
   return (
     <div className="result-container">
@@ -52,7 +164,16 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
             <div className="result-image-panel">
               <div className="result-image-label">Scanned Image</div>
               <div className="result-image-frame">
-                <img src={scannedImage} alt="Scanned document" className="result-image" />
+                <div className="result-image-wrapper">
+                  <img
+                    ref={imageRef}
+                    src={scannedImage}
+                    alt="Scanned document"
+                    className="result-image"
+                    onLoad={drawOverlay}
+                  />
+                  <canvas ref={overlayRef} className="result-image-overlay" />
+                </div>
               </div>
             </div>
           )}

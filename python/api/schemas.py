@@ -16,11 +16,22 @@ class Box(BaseModel):
     cls: float
 
 
+class RegionBox(BaseModel):
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+    conf: float
+    cls: float
+    label: Optional[str] = None
+
+
 class ScanResponse(BaseModel):
     nrcNumber: str
     nrcNumberBurmese: str
     rawDigits: str
     confidence: float
     boxes: List[Box]
+    regionBoxes: List[RegionBox] = Field(default_factory=list)
     inferenceMs: float
     model: dict

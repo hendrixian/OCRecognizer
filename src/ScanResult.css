@@ -131,6 +131,12 @@
   align-items: center;
   justify-content: center;
   min-height: 240px;
+  position: relative;
+}
+
+.result-image-wrapper {
+  position: relative;
+  width: 100%;
 }
 
 .result-image {
@@ -139,6 +145,14 @@
   object-fit: contain;
   border-radius: 0.9rem;
   display: block;
+}
+
+.result-image-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .result-info-panel .scanned-info {

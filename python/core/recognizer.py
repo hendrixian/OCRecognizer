@@ -7,11 +7,13 @@ from ultralytics import YOLO
 
 from core.config import (
     YOLO_WEIGHTS,
+    AREA_YOLO_WEIGHTS,
     CRNN_WEIGHTS,
     IMG_HEIGHT,
     IMG_WIDTH,
     HIDDEN_SIZE,
     CONF_THRESHOLD,
+    AREA_CONF_THRESHOLD,
     BURMESE_DIGITS,
     BURMESE_TO_LATIN
 )
@@ -24,18 +26,26 @@ _lock = threading.Lock()
 class NRCRecognizer:
     """End-to-end NRC recognition pipeline"""
 
-    def __init__(self, yolo_weights, crnn_weights, device=None):
+    def __init__(self, yolo_weights, crnn_weights, area_weights, device=None):
         if not yolo_weights.exists():
             raise FileNotFoundError(f'YOLO weights not found: {yolo_weights}')
         if not crnn_weights.exists():
             raise FileNotFoundError(f'CRNN weights not found: {crnn_weights}')
 
         self.yolo_path = yolo_weights
+        self.area_yolo_path = area_weights
         self.crnn_path = crnn_weights
         self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.preprocessor = Preprocessor(target_height=IMG_HEIGHT, target_width=IMG_WIDTH)
         self.detector = YOLO(str(self.yolo_path))
+        self.area_detector = None
+        self.area_names = {}
+        if self.area_yolo_path and self.area_yolo_path.exists():
+            self.area_detector = YOLO(str(self.area_yolo_path))
+            self.area_names = getattr(self.area_detector, 'names', {}) or {}
+        elif self.area_yolo_path:
+            print(f'[ocr] area model not found: {self.area_yolo_path}')
 
         self.crnn = CRNN(img_height=IMG_HEIGHT, num_classes=len(BURMESE_DIGITS), hidden_size=HIDDEN_SIZE)
         state = torch.load(str(self.crnn_path), map_location=self.device)
@@ -50,15 +60,16 @@ class NRCRecognizer:
     def recognize(self, image, conf_threshold=CONF_THRESHOLD):
         start = time.time()
 
+        region_boxes = self._detect_regions(image, AREA_CONF_THRESHOLD)
         preprocessed = self.preprocessor.preprocess_full_image(image)
         boxes = self._detect_boxes(preprocessed, conf_threshold)
 
         if len(boxes) == 0:
-            return self._empty_result(start, [])
+            return self._empty_result(start, [], region_boxes)
 
         digit_crops = self._crop_digits(image, boxes)
         if not digit_crops:
-            return self._empty_result(start, boxes)
+            return self._empty_result(start, boxes, region_boxes)
 
         concat_image = self._concat_crops(digit_crops)
         processed = self.preprocessor.preprocess_for_crnn(concat_image)
@@ -80,10 +91,12 @@ class NRCRecognizer:
             'rawDigits': raw_digits,
             'confidence': conf,
             'boxes': [self._box_to_dict(b) for b in boxes],
+            'regionBoxes': region_boxes,
             'inferenceMs': round(elapsed, 2),
             'model': {
                 'detector': self.yolo_path.name,
-                'recognizer': self.crnn_path.name
+                'recognizer': self.crnn_path.name,
+                'areaDetector': self.area_yolo_path.name if self.area_detector else None
             }
         }
 
@@ -125,6 +138,35 @@ class NRCRecognizer:
 
         return np.hstack(resized_crops)
 
+    def _detect_regions(self, image, conf_threshold):
+        if self.area_detector is None:
+            return []
+
+        results = self.area_detector(image, conf=conf_threshold, verbose=False)
+        if not results or results[0].boxes is None or len(results[0].boxes) == 0:
+            return []
+
+        boxes_xyxy = results[0].boxes.xyxy.cpu().numpy()
+        confs = results[0].boxes.conf.cpu().numpy()
+        classes = results[0].boxes.cls.cpu().numpy()
+
+        names = getattr(results[0], 'names', None) or self.area_names or {}
+
+        regions = []
+        for box_xyxy, conf, cls in zip(boxes_xyxy, confs, classes):
+            label = None
+            if isinstance(names, dict):
+                label = names.get(int(cls))
+            elif isinstance(names, (list, tuple)):
+                idx = int(cls)
+                if 0 <= idx < len(names):
+                    label = names[idx]
+            if not label:
+                label = f'region_{int(cls)}'
+            regions.append(self._region_box_to_dict(box_xyxy, conf, cls, label))
+
+        return regions
+
     def _ctc_decode(self, output):
         output = output.squeeze(1)
         _, preds = output.max(dim=1)
@@ -151,7 +193,18 @@ class NRCRecognizer:
             'cls': float(box[5])
         }
 
-    def _empty_result(self, start_time, boxes):
+    def _region_box_to_dict(self, box_xyxy, conf, cls, label):
+        return {
+            'x1': int(box_xyxy[0]),
+            'y1': int(box_xyxy[1]),
+            'x2': int(box_xyxy[2]),
+            'y2': int(box_xyxy[3]),
+            'conf': float(conf),
+            'cls': float(cls),
+            'label': label
+        }
+
+    def _empty_result(self, start_time, boxes, region_boxes):
         elapsed = (time.time() - start_time) * 1000
         return {
             'nrcNumber': '',
@@ -159,10 +212,12 @@ class NRCRecognizer:
             'rawDigits': '',
             'confidence': 0.0,
             'boxes': [self._box_to_dict(b) for b in boxes] if boxes else [],
+            'regionBoxes': region_boxes if region_boxes else [],
             'inferenceMs': round(elapsed, 2),
             'model': {
                 'detector': self.yolo_path.name,
-                'recognizer': self.crnn_path.name
+                'recognizer': self.crnn_path.name,
+                'areaDetector': self.area_yolo_path.name if self.area_detector else None
             }
         }
 
@@ -172,5 +227,5 @@ def get_recognizer():
     if _recognizer is None:
         with _lock:
             if _recognizer is None:
-                _recognizer = NRCRecognizer(YOLO_WEIGHTS, CRNN_WEIGHTS)
+                _recognizer = NRCRecognizer(YOLO_WEIGHTS, CRNN_WEIGHTS, AREA_YOLO_WEIGHTS)
     return _recognizer
