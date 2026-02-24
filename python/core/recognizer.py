@@ -244,48 +244,33 @@ class NRCRecognizer:
                 conf_sums[cls] += c
                 counts[cls] += 1
 
-        # 1) If AB appears with reasonable confidence, prefer it.
-        if ab_hits >= 1:
-            ab_avg_conf = (ab_conf_sum / ab_hits) if ab_hits else 0.0
+        # 1) If AB appears and has enough average confidence, return AB.
+        if ab_hits > 0:
+            ab_avg_conf = ab_conf_sum / ab_hits
             if ab_avg_conf >= 0.65:
                 return 'အေဘီ', float(ab_avg_conf), target
 
-        # O vs B rule:
-        # - if O appears with stable ~0.97 confidence, prefer O
-        # - otherwise choose lower average confidence between O and B
-        o_count = counts.get('အို', 0)
-        b_count = counts.get('ဘီ', 0)
-        if o_count > 0 and b_count > 0:
-            o_avg = conf_sums.get('အို', 0.0) / max(1, o_count)
-            b_avg = conf_sums.get('ဘီ', 0.0) / max(1, b_count)
-            o_is_stable_097 = abs(o_avg - 0.97) <= 0.01
-            if o_is_stable_097:
-                return 'အို', float(o_avg), target
-            if o_avg <= b_avg:
-                return 'အို', float(o_avg), target
-            return 'ဘီ', float(b_avg), target
-
-        # 2) Compare only A vs B.
+        # 2) Choose between A and B:
+        # - higher count first
+        # - if tie, higher average confidence
         a_count = counts.get('အေ', 0)
         b_count = counts.get('ဘီ', 0)
         if a_count > 0 or b_count > 0:
             a_avg = conf_sums.get('အေ', 0.0) / max(1, a_count)
             b_avg = conf_sums.get('ဘီ', 0.0) / max(1, b_count)
 
-            # Requested heuristic: for A vs B, choose the lower average confidence.
-            if a_count > 0 and b_count > 0:
-                if a_avg <= b_avg:
-                    return 'အေ', float(a_avg), target
+            if a_count > b_count:
+                return 'အေ', float(a_avg), target
+            if b_count > a_count:
                 return 'ဘီ', float(b_avg), target
-
-            # If only one exists, return that one.
-            if a_count > 0:
+            if a_avg >= b_avg:
                 return 'အေ', float(a_avg), target
             return 'ဘီ', float(b_avg), target
 
-        # 3) Use O only as fallback when no A/B/AB evidence exists.
-        if counts.get('အို', 0) > 0:
-            o_avg = conf_sums.get('အို', 0.0) / max(1, counts.get('အို', 0))
+        # 3) If neither A/B/AB, use O if available.
+        o_count = counts.get('အို', 0)
+        if o_count > 0:
+            o_avg = conf_sums.get('အို', 0.0) / o_count
             return 'အို', float(o_avg), target
 
         return '', 0.0, target

@@ -1,4 +1,4 @@
-﻿from typing import List, Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -31,6 +31,9 @@ class ScanResponse(BaseModel):
     nrcNumberBurmese: str
     rawDigits: str
     confidence: float
+    bloodType: Optional[str] = ''
+    bloodTypeConfidence: float = 0.0
+    bloodTypeBox: Optional[RegionBox] = None
     boxes: List[Box]
     regionBoxes: List[RegionBox] = Field(default_factory=list)
     inferenceMs: float
