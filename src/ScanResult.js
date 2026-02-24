@@ -1,9 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './ScanResult.css';
 
 const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
   const imageRef = useRef(null);
   const overlayRef = useRef(null);
+  const overlayStateRef = useRef({ region: [], digit: [] });
+
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [hoveredBox, setHoveredBox] = useState(null);
 
   // Mock data - this will come from your backend/ML model
   const resultData = scannedData || {
@@ -42,8 +46,46 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     return `${base}${conf !== null ? ` ${conf}%` : ''}`;
   };
 
-  const drawBoxes = (ctx, boxes = [], scaleX, scaleY, options = {}) => {
-    if (!Array.isArray(boxes) || boxes.length === 0) return;
+  const buildScaledBoxes = (boxes, scaleX, scaleY) =>
+    boxes.map((box, index) => {
+      const x1 = Math.max(0, box.x1 * scaleX);
+      const y1 = Math.max(0, box.y1 * scaleY);
+      const x2 = Math.max(0, box.x2 * scaleX);
+      const y2 = Math.max(0, box.y2 * scaleY);
+      return {
+        index,
+        box,
+        x1,
+        y1,
+        x2,
+        y2
+      };
+    });
+
+  const drawScaledBoxes = (ctx, scaledBoxes = [], options = {}) => {
+    if (!Array.isArray(scaledBoxes) || scaledBoxes.length === 0) return;
+
+    const {
+      strokeStyle = '#F8F3CE',
+      lineWidth = 2
+    } = options;
+
+    ctx.save();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+
+    scaledBoxes.forEach((item) => {
+      const w = Math.max(0, item.x2 - item.x1);
+      const h = Math.max(0, item.y2 - item.y1);
+      if (w === 0 || h === 0) return;
+      ctx.strokeRect(item.x1, item.y1, w, h);
+    });
+
+    ctx.restore();
+  };
+
+  const drawHoverLabel = (ctx, item, options = {}) => {
+    if (!item) return;
 
     const {
       strokeStyle = '#F8F3CE',
@@ -54,33 +96,29 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
       labelBuilder
     } = options;
 
+    const label = typeof labelBuilder === 'function' ? labelBuilder(item.box) : '';
+    if (!label) return;
+
+    const w = Math.max(0, item.x2 - item.x1);
+    const h = Math.max(0, item.y2 - item.y1);
+
     ctx.save();
     ctx.lineWidth = lineWidth;
     ctx.strokeStyle = strokeStyle;
     ctx.font = font;
 
-    boxes.forEach((box) => {
-      const x1 = Math.max(0, box.x1 * scaleX);
-      const y1 = Math.max(0, box.y1 * scaleY);
-      const x2 = Math.max(0, box.x2 * scaleX);
-      const y2 = Math.max(0, box.y2 * scaleY);
-      const w = Math.max(0, x2 - x1);
-      const h = Math.max(0, y2 - y1);
+    if (w > 0 && h > 0) {
+      ctx.strokeRect(item.x1, item.y1, w, h);
+    }
 
-      ctx.strokeRect(x1, y1, w, h);
-
-      const label = typeof labelBuilder === 'function' ? labelBuilder(box) : '';
-      if (label) {
-        const padding = 4;
-        const textWidth = ctx.measureText(label).width;
-        const textX = x1;
-        const textY = Math.max(0, y1 - 18);
-        ctx.fillStyle = labelBackground;
-        ctx.fillRect(textX, textY, textWidth + padding * 2, 18);
-        ctx.fillStyle = labelColor;
-        ctx.fillText(label, textX + padding, textY + 13);
-      }
-    });
+    const padding = 4;
+    const textWidth = ctx.measureText(label).width;
+    const textX = item.x1;
+    const textY = Math.max(0, item.y1 - 18);
+    ctx.fillStyle = labelBackground;
+    ctx.fillRect(textX, textY, textWidth + padding * 2, 18);
+    ctx.fillStyle = labelColor;
+    ctx.fillText(label, textX + padding, textY + 13);
 
     ctx.restore();
   };
@@ -104,25 +142,107 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     ctx.clearRect(0, 0, clientWidth, clientHeight);
 
     if ((!regionBoxes || regionBoxes.length === 0) && (!digitBoxes || digitBoxes.length === 0)) {
+      overlayStateRef.current = { region: [], digit: [] };
       return;
     }
 
     const scaleX = clientWidth / naturalWidth;
     const scaleY = clientHeight / naturalHeight;
+    const scaledRegions = buildScaledBoxes(regionBoxes, scaleX, scaleY);
+    const scaledDigits = buildScaledBoxes(digitBoxes, scaleX, scaleY);
 
-    drawBoxes(ctx, regionBoxes, scaleX, scaleY, {
+    overlayStateRef.current = {
+      region: scaledRegions,
+      digit: scaledDigits
+    };
+
+    drawScaledBoxes(ctx, scaledRegions, {
       strokeStyle: '#6EF2C4',
-      lineWidth: 3,
-      labelColor: '#061A12',
-      labelBackground: 'rgba(110, 242, 196, 0.75)',
-      labelBuilder: buildRegionLabel
+      lineWidth: 3
     });
 
-    drawBoxes(ctx, digitBoxes, scaleX, scaleY, {
+    drawScaledBoxes(ctx, scaledDigits, {
       strokeStyle: '#F8F3CE',
-      lineWidth: 1.5,
-      labelBuilder: buildDigitLabel
+      lineWidth: 1.5
     });
+
+    if (hoveredBox?.type === 'region') {
+      const item = scaledRegions[hoveredBox.index];
+      drawHoverLabel(ctx, item, {
+        strokeStyle: '#6EF2C4',
+        lineWidth: 3,
+        labelColor: '#061A12',
+        labelBackground: 'rgba(110, 242, 196, 0.75)',
+        labelBuilder: buildRegionLabel
+      });
+    }
+
+    if (hoveredBox?.type === 'digit') {
+      const item = scaledDigits[hoveredBox.index];
+      drawHoverLabel(ctx, item, {
+        strokeStyle: '#F8F3CE',
+        lineWidth: 2,
+        labelBuilder: buildDigitLabel
+      });
+    }
+  };
+
+  const isSameHover = (a, b) =>
+    a?.type === b?.type && a?.index === b?.index;
+
+  const findHoverTarget = (x, y) => {
+    const { region, digit } = overlayStateRef.current || {};
+
+    if (Array.isArray(digit)) {
+      const digitIndex = digit.findIndex(
+        (item) => x >= item.x1 && x <= item.x2 && y >= item.y1 && y <= item.y2
+      );
+      if (digitIndex !== -1) {
+        return { type: 'digit', index: digitIndex };
+      }
+    }
+
+    if (Array.isArray(region)) {
+      const regionIndex = region.findIndex(
+        (item) => x >= item.x1 && x <= item.x2 && y >= item.y1 && y <= item.y2
+      );
+      if (regionIndex !== -1) {
+        return { type: 'region', index: regionIndex };
+      }
+    }
+
+    return null;
+  };
+
+  const handleMouseMove = (event) => {
+    const img = imageRef.current;
+    if (!img) return;
+
+    const rect = img.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      if (hoveredBox) setHoveredBox(null);
+      return;
+    }
+
+    const next = findHoverTarget(x, y);
+    if (!isSameHover(hoveredBox, next)) {
+      setHoveredBox(next);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (hoveredBox) setHoveredBox(null);
+  };
+
+  const handleZoomIn = () => {
+    if (!isZoomed) setIsZoomed(true);
+  };
+
+  const handleZoomOut = () => {
+    if (isZoomed) setIsZoomed(false);
   };
 
   useEffect(() => {
@@ -131,7 +251,11 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     window.addEventListener('resize', handleResize);
     drawOverlay();
     return () => window.removeEventListener('resize', handleResize);
-  }, [hasImage, scannedImage, scannedData]);
+  }, [hasImage, scannedImage, scannedData, hoveredBox, isZoomed]);
+
+  useEffect(() => {
+    setHoveredBox(null);
+  }, [scannedData, scannedImage]);
 
   return (
     <div className="result-container">
@@ -164,7 +288,15 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
             <div className="result-image-panel">
               <div className="result-image-label">Scanned Image</div>
               <div className="result-image-frame">
-                <div className="result-image-wrapper">
+                {isZoomed && (
+                  <div className="result-image-backdrop" onClick={handleZoomOut} />
+                )}
+                <div
+                  className={`result-image-wrapper ${isZoomed ? 'zoomed' : ''}`}
+                  onClick={handleZoomIn}
+                  onMouseMove={handleMouseMove}
+                  onMouseLeave={handleMouseLeave}
+                >
                   <img
                     ref={imageRef}
                     src={scannedImage}
