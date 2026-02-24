@@ -131,6 +131,37 @@
   align-items: center;
   justify-content: center;
   min-height: 240px;
+  position: relative;
+}
+
+.result-image-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 5, 0.7);
+  z-index: 40;
+}
+
+.result-image-wrapper {
+  position: relative;
+  width: 100%;
+  cursor: zoom-in;
+}
+
+.result-image-wrapper.zoomed {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100vw - 4rem);
+  max-height: calc(100vh - 4rem);
+  width: auto;
+  height: auto;
+  z-index: 50;
+  background: rgba(5, 5, 5, 0.85);
+  border-radius: 1.2rem;
+  overflow: hidden;
+  cursor: zoom-out;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 .result-image {
@@ -139,6 +170,22 @@
   object-fit: contain;
   border-radius: 0.9rem;
   display: block;
+}
+
+.result-image-wrapper.zoomed .result-image {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.result-image-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .result-info-panel .scanned-info {

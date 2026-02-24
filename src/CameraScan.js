@@ -51,18 +51,38 @@ const CameraScan = ({ onBack, onScanComplete }) => {
     }
   };
 
-  const drawBoxes = (boxes = []) => {
-    const overlay = overlayRef.current;
-    if (!overlay) return;
-    const ctx = overlay.getContext('2d');
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
+  const buildDigitLabel = (box) => {
+    const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
+    const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
+    if (cls === null) return '';
+    return `${cls}${conf !== null ? ` ${conf}%` : ''}`;
+  };
 
+  const buildRegionLabel = (box) => {
+    const label = typeof box.label === 'string' ? box.label : '';
+    const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
+    const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
+    const base = label || (cls !== null ? `region_${cls}` : '');
+    if (!base) return '';
+    return `${base}${conf !== null ? ` ${conf}%` : ''}`;
+  };
+
+  const drawBoxes = (ctx, boxes = [], options = {}) => {
     if (!Array.isArray(boxes) || boxes.length === 0) return;
 
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#F8F3CE';
-    ctx.fillStyle = 'rgba(248, 243, 206, 0.1)';
-    ctx.font = '14px "Inter", system-ui, sans-serif';
+    const {
+      strokeStyle = '#F8F3CE',
+      lineWidth = 2,
+      font = '14px "Inter", system-ui, sans-serif',
+      labelColor = '#F8F3CE',
+      labelBackground = 'rgba(0, 0, 0, 0.55)',
+      labelBuilder
+    } = options;
+
+    ctx.save();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+    ctx.font = font;
 
     boxes.forEach((box) => {
       const x = Math.max(0, box.x1);
@@ -72,20 +92,41 @@ const CameraScan = ({ onBack, onScanComplete }) => {
 
       ctx.strokeRect(x, y, w, h);
 
-      const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
-      const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
-      const label = cls !== null ? `digit_${cls}${conf !== null ? ` ${conf}%` : ''}` : '';
+      const label = typeof labelBuilder === 'function' ? labelBuilder(box) : '';
 
       if (label) {
         const padding = 4;
         const textWidth = ctx.measureText(label).width;
         const textX = x;
         const textY = Math.max(0, y - 18);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillStyle = labelBackground;
         ctx.fillRect(textX, textY, textWidth + padding * 2, 18);
-        ctx.fillStyle = '#F8F3CE';
+        ctx.fillStyle = labelColor;
         ctx.fillText(label, textX + padding, textY + 13);
       }
+    });
+
+    ctx.restore();
+  };
+
+  const drawOverlay = (regionBoxes = [], digitBoxes = []) => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    drawBoxes(ctx, regionBoxes, {
+      strokeStyle: '#6EF2C4',
+      lineWidth: 3,
+      labelColor: '#061A12',
+      labelBackground: 'rgba(110, 242, 196, 0.75)',
+      labelBuilder: buildRegionLabel
+    });
+
+    drawBoxes(ctx, digitBoxes, {
+      strokeStyle: '#F8F3CE',
+      lineWidth: 1.5,
+      labelBuilder: buildDigitLabel
     });
   };
 
@@ -209,7 +250,9 @@ const CameraScan = ({ onBack, onScanComplete }) => {
               const uiResult = toUiScanResult(apiResult);
               setLastResult(uiResult);
               setLastUpdated(new Date());
-              drawBoxes(apiResult?.boxes || []);
+              const regionBoxes = apiResult?.regionBoxes || apiResult?.areaBoxes || [];
+              const digitBoxes = apiResult?.boxes || [];
+              drawOverlay(regionBoxes, digitBoxes);
             } catch (err) {
               setError(err?.message || 'Scan failed');
               setIsDetecting(false);
