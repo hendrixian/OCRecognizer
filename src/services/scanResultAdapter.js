@@ -1,9 +1,11 @@
-﻿export const DEFAULT_SCAN_RESULT = {
+export const DEFAULT_SCAN_RESULT = {
   nrcNumber: '',
   name: '',
   birthDate: '',
   fatherName: '',
   motherName: '',
+  bloodType: '',
+  bloodTypeConfidence: 0,
   address: '',
   issueDate: '',
   expiryDate: '',
@@ -30,10 +32,16 @@ export function toUiScanResult(apiResult) {
       ? apiResult.confidence
       : DEFAULT_SCAN_RESULT.confidence;
 
+  const bloodTypeConfidence =
+    typeof apiResult.bloodTypeConfidence === 'number'
+      ? apiResult.bloodTypeConfidence
+      : DEFAULT_SCAN_RESULT.bloodTypeConfidence;
+
   return {
     ...DEFAULT_SCAN_RESULT,
     ...apiResult,
     nrcNumber,
-    confidence
+    confidence,
+    bloodTypeConfidence
   };
 }

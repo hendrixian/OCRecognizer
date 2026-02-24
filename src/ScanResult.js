@@ -93,6 +93,16 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
                   <div className="info-label">Mother's Name</div>
                   <div className="info-value">{resultData.motherName}</div>
                 </div>
+
+                <div className="info-item">
+                  <div className="info-label">Bloodtype</div>
+                  <div className="info-value">{resultData.bloodType || '-'}</div>
+                  {typeof resultData.bloodTypeConfidence === 'number' && resultData.bloodTypeConfidence > 0 && (
+                    <div className="info-subvalue">
+                      Confidence: {Math.round(resultData.bloodTypeConfidence * 100)}%
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Address - Full width */}

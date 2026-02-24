@@ -21,6 +21,9 @@ class ScanResponse(BaseModel):
     nrcNumberBurmese: str
     rawDigits: str
     confidence: float
+    bloodType: Optional[str] = ''
+    bloodTypeConfidence: float = 0.0
+    bloodTypeBox: Optional[RegionBox] = None
     boxes: List[Box]
     inferenceMs: float
     model: dict

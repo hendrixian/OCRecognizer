@@ -28,6 +28,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
     lastResult?.nrcNumberBurmese ||
     lastResult?.rawDigits ||
     '';
+  const bloodTypeDisplay = lastResult?.bloodType || '';
 
   const clearOverlay = () => {
     const overlay = overlayRef.current;
@@ -178,7 +179,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
   };
 
   const handleUseResult = () => {
-    if (!onScanComplete || !nrcNumberDisplay) return;
+    if (!onScanComplete || (!nrcNumberDisplay && !bloodTypeDisplay)) return;
     onScanComplete(lastResult);
   };
 
@@ -310,27 +311,39 @@ const CameraScan = ({ onBack, onScanComplete }) => {
             {status}
           </div>
           <div className="status-text">
-            {isStreaming ? (isDetecting ? 'Scanning…' : 'Scan paused') : 'Camera off'}
+            {isStreaming ? (isDetecting ? 'Scanning...' : 'Scan paused') : 'Camera off'}
           </div>
         </div>
 
         <div className="camera-results">
           <div className="result-block">
             <div className="info-label">NRC Number</div>
-            <div className="info-value">{nrcNumberDisplay || '—'}</div>
+            <div className="info-value">{nrcNumberDisplay || '-'}</div>
+          </div>
+          <div className="result-block">
+            <div className="info-label">Bloodtype</div>
+            <div className="info-value">{bloodTypeDisplay || '-'}</div>
           </div>
           <div className="result-block">
             <div className="info-label">Confidence</div>
             <div className="info-value">
               {typeof lastResult.confidence === 'number'
                 ? `${Math.round(lastResult.confidence * 100)}%`
-                : '—'}
+                : '-'}
+            </div>
+          </div>
+          <div className="result-block">
+            <div className="info-label">Blood Confidence</div>
+            <div className="info-value">
+              {typeof lastResult.bloodTypeConfidence === 'number' && lastResult.bloodTypeConfidence > 0
+                ? `${Math.round(lastResult.bloodTypeConfidence * 100)}%`
+                : '-'}
             </div>
           </div>
           <div className="result-block">
             <div className="info-label">Last Update</div>
             <div className="info-value">
-              {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'}
+              {lastUpdated ? lastUpdated.toLocaleTimeString() : '-'}
             </div>
           </div>
         </div>
@@ -339,7 +352,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
           <button
             className="secondary-btn"
             onClick={handleUseResult}
-            disabled={!nrcNumberDisplay}
+            disabled={!nrcNumberDisplay && !bloodTypeDisplay}
           >
             Use Current Result
           </button>
