@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import './ScanResult.css';
 
 const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
@@ -16,6 +16,8 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     birthDate: "15.05.1990",
     fatherName: "U MYA",
     motherName: "Daw AYE",
+    religion: "",
+    height: "",
     address: "No.123, Yangon-Insein Road, Hlaing Township, Yangon",
     issueDate: "20.01.2020",
     expiryDate: "19.01.2030",
@@ -327,14 +329,14 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
 
               {/* Personal Information Grid */}
               <div className="info-grid">
+                
+                <div className="info-item">
+                  <div className="info-label">Issue Date</div>
+                  <div className="info-value">{resultData.issueDate}</div>
+                </div>
                 <div className="info-item">
                   <div className="info-label">Full Name</div>
                   <div className="info-value">{resultData.name}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="info-label">Date of Birth</div>
-                  <div className="info-value">{resultData.birthDate}</div>
                 </div>
 
                 <div className="info-item">
@@ -343,8 +345,18 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
                 </div>
 
                 <div className="info-item">
-                  <div className="info-label">Mother's Name</div>
-                  <div className="info-value">{resultData.motherName}</div>
+                  <div className="info-label">Date of birth</div>
+                  <div className="info-value">{resultData.birthDate}</div>
+                </div>
+
+                <div className="info-item">
+                  <div className="info-label">Religion</div>
+                  <div className="info-value">{resultData.religion || '-'}</div>
+                </div>
+
+                <div className="info-item">
+                  <div className="info-label">Height</div>
+                  <div className="info-value">{resultData.height || '-'}</div>
                 </div>
 
                 <div className="info-item">

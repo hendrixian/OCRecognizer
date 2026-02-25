@@ -4,6 +4,8 @@ export const DEFAULT_SCAN_RESULT = {
   birthDate: '',
   fatherName: '',
   motherName: '',
+  religion: '',
+  height: '',
   bloodType: '',
   bloodTypeConfidence: 0,
   address: '',
