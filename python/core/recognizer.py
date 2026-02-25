@@ -246,18 +246,32 @@ class NRCRecognizer:
                         variant_conf_sums[variant_idx][cls] += c
                         variant_counts[variant_idx][cls] += 1
 
-            if ab_hits > 0:
+            if ab_hits >= 2:
                 ab_avg_conf = ab_conf_sum / ab_hits
-                if ab_avg_conf >= 0.65:
+                if ab_avg_conf >= 0.72:
                     return 'အေဘီ', float(ab_avg_conf)
 
-            # O safeguard: if RGB (v0) repeatedly predicts strong O, prefer O.
+            # A confirmation for fallback zones: if RGB repeatedly predicts strong A, prefer A.
+            a_v0_count = variant_counts[0].get('အေ', 0)
+            if a_v0_count >= 1:
+                a_v0_avg = variant_conf_sums[0].get('အေ', 0.0) / a_v0_count
+                if a_v0_avg >= 0.78:
+                    return 'အေ', float(a_v0_avg)
+
+            # Stricter O safeguard: require strong RGB O plus supporting threshold O evidence.
             o_v0_count = variant_counts[0].get('အို', 0)
+            o_v1_count = variant_counts[1].get('အို', 0)
             b_v0_count = variant_counts[0].get('ဘီ', 0)
-            if o_v0_count > 0:
+            if o_v0_count > 0 and o_v1_count > 0:
                 o_v0_avg = variant_conf_sums[0].get('အို', 0.0) / o_v0_count
-                if o_v0_count >= 2 and o_v0_avg >= 0.96 and o_v0_count >= b_v0_count:
-                    return 'အို', float(o_v0_avg)
+                o_v1_avg = variant_conf_sums[1].get('အို', 0.0) / o_v1_count
+                if (
+                    o_v0_count >= 2
+                    and o_v0_avg >= 0.97
+                    and o_v1_avg >= 0.88
+                    and o_v0_count > b_v0_count
+                ):
+                    return 'အို', float((o_v0_avg + o_v1_avg) / 2.0)
 
             count_margin = 2
             conf_margin = 0.08
@@ -340,23 +354,39 @@ class NRCRecognizer:
             for cls, conf, v_idx in primary_reads:
                 primary_by_variant[v_idx] = (cls, conf)
 
+            # A priority from RGB in primary crop: trust v0 A unless there is
+            # very strong contradictory evidence.
+            p_v0 = primary_by_variant.get(0)
+            p_v1 = primary_by_variant.get(1)
+            if p_v0:
+                p0_cls, p0_conf = p_v0
+                if p0_cls == 'အေ' and p0_conf >= 0.74:
+                    if not p_v1:
+                        return 'အေ', float(p0_conf), target
+                    p1_cls, p1_conf = p_v1
+                    strong_contradiction = (
+                        (p1_cls == 'အေဘီ' and p1_conf >= 0.90) or
+                        (p1_cls == 'အို' and p1_conf >= 0.96)
+                    )
+                    if not strong_contradiction:
+                        return 'အေ', float(p0_conf), target
+
             # AB is often under-confident in this model; prioritize it when present.
             primary_ab_confs = [conf for cls, conf, _ in primary_reads if cls == 'အေဘီ']
-            PRIMARY_AB_MIN_CONF = 0.55
-            if primary_ab_confs:
+            PRIMARY_AB_MIN_CONF = 0.80
+            primary_ab_hits = sum(1 for cls, _, _ in primary_reads if cls == 'အေဘီ')
+            if primary_ab_confs and (primary_ab_hits >= 2 or max(primary_ab_confs) >= 0.90):
                 best_ab_conf = max(primary_ab_confs)
                 if best_ab_conf >= PRIMARY_AB_MIN_CONF:
                     return 'အေဘီ', float(best_ab_conf), target
 
-            # O safeguard for primary crop:
-            # if RGB says strong O and threshold says B, keep O.
-            p_v0 = primary_by_variant.get(0)
-            p_v1 = primary_by_variant.get(1)
+            # A confirmation for primary crop:
+            # prefer A when RGB sees confident A, unless threshold strongly contradicts it.
             if p_v0 and p_v1:
                 p0_cls, p0_conf = p_v0
-                p1_cls, _p1_conf = p_v1
-                if p0_cls == 'အို' and p1_cls == 'ဘီ' and p0_conf >= 0.96:
-                    return 'အို', float(p0_conf), target
+                p1_cls, p1_conf = p_v1
+                if p0_cls == 'အေ' and p0_conf >= 0.82 and (p1_conf - p0_conf) < 0.12:
+                    return 'အေ', float(p0_conf), target
 
             # If same class appears in both variants, merge confidence.
             if p_v0 and p_v1 and p_v0[0] == p_v1[0]:
