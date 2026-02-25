@@ -206,74 +206,198 @@ class NRCRecognizer:
         if crop.size == 0:
             return '', 0.0, target
 
-        votes = defaultdict(float)
-        conf_sums = defaultdict(float)
-        counts = defaultdict(int)
-        ab_hits = 0
-        ab_conf_sum = 0.0
+        def _infer_from_zones(zones, debug_prefix):
+            conf_sums = defaultdict(float)
+            counts = defaultdict(int)
+            variant_conf_sums = {0: defaultdict(float), 1: defaultdict(float)}
+            variant_counts = {0: defaultdict(int), 1: defaultdict(int)}
+            ab_hits = 0
+            ab_conf_sum = 0.0
 
-        for zone_idx, zone in enumerate(self._extract_blood_value_zones(crop)):
-            zone = self._upscale_for_trocr(zone)
-            for variant_idx, variant in enumerate(self._build_blood_variants(zone)):
-                pil_image = Image.fromarray(variant)
-                try:
-                    text, confidence = read_blood_type(pil_image)
-                    print(
-                        f"[DEBUG] Blood OCR z{zone_idx} v{variant_idx} "
-                        f"({zone.shape[1]}x{zone.shape[0]}): '{text}' (confidence: {confidence:.2f})"
-                    )
-                except Exception as exc:
-                    print(f'[ocr] blood type OCR failed: {exc}')
-                    continue
+            for zone_idx, zone in enumerate(zones):
+                zone = self._upscale_for_trocr(zone)
+                for variant_idx, variant in enumerate(self._build_blood_variants(zone)):
+                    pil_image = Image.fromarray(variant)
+                    try:
+                        text, confidence = read_blood_type(pil_image)
+                        print(
+                            f"[DEBUG] Blood OCR {debug_prefix}{zone_idx} v{variant_idx} "
+                            f"({zone.shape[1]}x{zone.shape[0]}): '{text}' (confidence: {confidence:.2f})"
+                        )
+                    except Exception as exc:
+                        print(f'[ocr] blood type OCR failed: {exc}')
+                        continue
 
-                cleaned = self._normalize_blood_type(text)
-                if not cleaned or self._looks_like_blood_label(cleaned):
-                    continue
+                    cleaned = self._normalize_blood_type(text)
+                    if not cleaned or self._looks_like_blood_label(cleaned):
+                        continue
 
-                cls = self._canonical_blood_class(cleaned)
-                if not cls:
-                    continue
+                    cls = self._canonical_blood_class(cleaned)
+                    if not cls:
+                        continue
 
-                c = float(confidence)
-                if cls == 'အေဘီ':
-                    ab_hits += 1
-                    ab_conf_sum += c
-                # Give stronger weight to later (more-right) zones to avoid label text on left.
-                right_bias = 1.0 + (0.25 * zone_idx)
-                votes[cls] += right_bias * (1.0 + (0.10 * c))
-                conf_sums[cls] += c
-                counts[cls] += 1
+                    c = float(confidence)
+                    if cls == 'အေဘီ':
+                        ab_hits += 1
+                        ab_conf_sum += c
+                    conf_sums[cls] += c
+                    counts[cls] += 1
+                    if variant_idx in (0, 1):
+                        variant_conf_sums[variant_idx][cls] += c
+                        variant_counts[variant_idx][cls] += 1
 
-        # 1) If AB appears and has enough average confidence, return AB.
-        if ab_hits > 0:
-            ab_avg_conf = ab_conf_sum / ab_hits
-            if ab_avg_conf >= 0.65:
-                return 'အေဘီ', float(ab_avg_conf), target
+            if ab_hits > 0:
+                ab_avg_conf = ab_conf_sum / ab_hits
+                if ab_avg_conf >= 0.65:
+                    return 'အေဘီ', float(ab_avg_conf)
 
-        # 2) Choose between A and B:
-        # - higher count first
-        # - if tie, higher average confidence
-        a_count = counts.get('အေ', 0)
-        b_count = counts.get('ဘီ', 0)
-        if a_count > 0 or b_count > 0:
-            a_avg = conf_sums.get('အေ', 0.0) / max(1, a_count)
-            b_avg = conf_sums.get('ဘီ', 0.0) / max(1, b_count)
+            # O safeguard: if RGB (v0) repeatedly predicts strong O, prefer O.
+            o_v0_count = variant_counts[0].get('အို', 0)
+            b_v0_count = variant_counts[0].get('ဘီ', 0)
+            if o_v0_count > 0:
+                o_v0_avg = variant_conf_sums[0].get('အို', 0.0) / o_v0_count
+                if o_v0_count >= 2 and o_v0_avg >= 0.96 and o_v0_count >= b_v0_count:
+                    return 'အို', float(o_v0_avg)
 
-            if a_count > b_count:
-                return 'အေ', float(a_avg), target
-            if b_count > a_count:
-                return 'ဘီ', float(b_avg), target
-            if a_avg >= b_avg:
-                return 'အေ', float(a_avg), target
-            return 'ဘီ', float(b_avg), target
+            count_margin = 2
+            conf_margin = 0.08
 
-        # 3) If neither A/B/AB, use O if available.
-        o_count = counts.get('အို', 0)
-        if o_count > 0:
-            o_avg = conf_sums.get('အို', 0.0) / o_count
-            return 'အို', float(o_avg), target
+            def _avg(conf_map, count_map, key):
+                c = count_map.get(key, 0)
+                return (conf_map.get(key, 0.0) / c) if c > 0 else 0.0
 
+            def _decide_ab(count_map, conf_map):
+                a_count = count_map.get('အေ', 0)
+                b_count = count_map.get('ဘီ', 0)
+                if a_count == 0 and b_count == 0:
+                    return None
+                a_avg = _avg(conf_map, count_map, 'အေ')
+                b_avg = _avg(conf_map, count_map, 'ဘီ')
+
+                if a_count > 0 and b_count == 0:
+                    return 'အေ', a_avg
+                if b_count > 0 and a_count == 0:
+                    return 'ဘီ', b_avg
+
+                count_gap = a_count - b_count
+                if count_gap >= count_margin:
+                    return 'အေ', a_avg
+                if count_gap <= -count_margin:
+                    return 'ဘီ', b_avg
+
+                conf_gap = a_avg - b_avg
+                if conf_gap >= conf_margin:
+                    return 'အေ', a_avg
+                if conf_gap <= -conf_margin:
+                    return 'ဘီ', b_avg
+                return None
+
+            decision = _decide_ab(variant_counts[0], variant_conf_sums[0])
+            if decision is None:
+                decision = _decide_ab(variant_counts[1], variant_conf_sums[1])
+            if decision is not None:
+                return decision[0], float(decision[1])
+
+            has_a_or_b = (counts.get('အေ', 0) > 0) or (counts.get('ဘီ', 0) > 0)
+            if has_a_or_b:
+                return '', 0.0
+
+            o_count = counts.get('အို', 0)
+            if o_count > 0:
+                o_avg = conf_sums.get('အို', 0.0) / o_count
+                return 'အို', float(o_avg)
+            return '', 0.0
+
+        # Primary: one single right-side crop after label.
+        # Option 1: if v0/v1 disagree, pick the higher-confidence one.
+        primary_zone = self._extract_primary_blood_value_zone(crop)
+        primary_zone = self._upscale_for_trocr(primary_zone)
+        primary_reads = []
+        for variant_idx, variant in enumerate(self._build_blood_variants(primary_zone)):
+            pil_image = Image.fromarray(variant)
+            try:
+                text, confidence = read_blood_type(pil_image)
+                print(
+                    f"[DEBUG] Blood OCR p0 v{variant_idx} "
+                    f"({primary_zone.shape[1]}x{primary_zone.shape[0]}): '{text}' (confidence: {confidence:.2f})"
+                )
+            except Exception as exc:
+                print(f'[ocr] blood type OCR failed: {exc}')
+                continue
+
+            cleaned = self._normalize_blood_type(text)
+            if not cleaned or self._looks_like_blood_label(cleaned):
+                continue
+
+            cls = self._canonical_blood_class(cleaned)
+            if not cls:
+                continue
+
+            primary_reads.append((cls, float(confidence), variant_idx))
+
+        if primary_reads:
+            primary_by_variant = {}
+            for cls, conf, v_idx in primary_reads:
+                primary_by_variant[v_idx] = (cls, conf)
+
+            # AB is often under-confident in this model; prioritize it when present.
+            primary_ab_confs = [conf for cls, conf, _ in primary_reads if cls == 'အေဘီ']
+            PRIMARY_AB_MIN_CONF = 0.55
+            if primary_ab_confs:
+                best_ab_conf = max(primary_ab_confs)
+                if best_ab_conf >= PRIMARY_AB_MIN_CONF:
+                    return 'အေဘီ', float(best_ab_conf), target
+
+            # O safeguard for primary crop:
+            # if RGB says strong O and threshold says B, keep O.
+            p_v0 = primary_by_variant.get(0)
+            p_v1 = primary_by_variant.get(1)
+            if p_v0 and p_v1:
+                p0_cls, p0_conf = p_v0
+                p1_cls, _p1_conf = p_v1
+                if p0_cls == 'အို' and p1_cls == 'ဘီ' and p0_conf >= 0.96:
+                    return 'အို', float(p0_conf), target
+
+            # If same class appears in both variants, merge confidence.
+            if p_v0 and p_v1 and p_v0[0] == p_v1[0]:
+                merged_conf = (p_v0[1] + p_v1[1]) / 2.0
+                return p_v0[0], float(merged_conf), target
+
+            # If variants disagree:
+            # - choose higher-confidence only when margin is clear
+            # - otherwise fall back to zone strategy
+            if p_v0 and p_v1:
+                sorted_reads = sorted((p_v0, p_v1), key=lambda it: it[1], reverse=True)
+                best_cls, best_conf = sorted_reads[0]
+                second_cls, second_conf = sorted_reads[1]
+                DISAGREE_CONF_MARGIN = 0.08
+                if (best_conf - second_conf) >= DISAGREE_CONF_MARGIN:
+                    return best_cls, float(best_conf), target
+            else:
+                # Only one valid primary read, use it directly.
+                only_cls, only_conf, _only_v = primary_reads[0]
+                return only_cls, float(only_conf), target
+
+        # Fallback: old multi-zone strategy.
+        blood_type, blood_conf = _infer_from_zones(self._extract_blood_value_zones(crop), 'z')
+        if blood_type:
+            return blood_type, blood_conf, target
         return '', 0.0, target
+
+    def _extract_primary_blood_value_zone(self, crop):
+        h, w = crop.shape[:2]
+        x0 = int(w * 0.55)
+        y0 = int(h * 0.10)
+        y1 = int(h * 0.90)
+        x0 = max(0, min(x0, w - 1))
+        if y1 <= y0:
+            y0, y1 = 0, h
+        primary = crop[y0:y1, x0:]
+        if primary.size == 0:
+            primary = crop[:, x0:]
+        if primary.size == 0:
+            primary = crop
+        return primary
 
     def _extract_blood_value_zones(self, crop):
         h, w = crop.shape[:2]
