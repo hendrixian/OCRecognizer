@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import './CameraScan.css';
 import { scanNrcFromDataUrl } from './services/ocrService';
 import { toUiScanResult, DEFAULT_SCAN_RESULT } from './services/scanResultAdapter';
+import { getBurmeseClassLabel } from './utils/burmeseClassLabels';
+import { deriveNrcNumberFromDetections } from './utils/nrcNumber';
 
 const SCAN_INTERVAL_MS = 500;
 const MAX_CAPTURE_WIDTH = 1280;
@@ -23,10 +25,15 @@ const CameraScan = ({ onBack, onScanComplete }) => {
   const [videoAspect, setVideoAspect] = useState(16 / 9);
   const [lastUpdated, setLastUpdated] = useState(null);
 
+  const derivedNrcNumber = deriveNrcNumberFromDetections(
+    lastResult?.boxes || [],
+    lastResult?.regionBoxes || lastResult?.areaBoxes || []
+  );
   const nrcNumberDisplay =
     lastResult?.nrcNumber ||
     lastResult?.nrcNumberBurmese ||
     lastResult?.rawDigits ||
+    derivedNrcNumber ||
     '';
   const bloodTypeDisplay = lastResult?.bloodType || '';
 
@@ -52,10 +59,12 @@ const CameraScan = ({ onBack, onScanComplete }) => {
   };
 
   const buildDigitLabel = (box) => {
-    const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
+    const cls = typeof box.cls === 'number' ? box.cls : null;
     const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
     if (cls === null) return '';
-    return `${cls}${conf !== null ? ` ${conf}%` : ''}`;
+    const label = getBurmeseClassLabel(cls);
+    if (!label) return '';
+    return `${label}${conf !== null ? ` ${conf}%` : ''}`;
   };
 
   const buildRegionLabel = (box) => {
@@ -73,7 +82,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
     const {
       strokeStyle = '#F8F3CE',
       lineWidth = 2,
-      font = '14px "Inter", system-ui, sans-serif',
+      font = '14px "Myanmar Text", "Noto Sans Myanmar", "Pyidaungsu", "Inter", system-ui, sans-serif',
       labelColor = '#F8F3CE',
       labelBackground = 'rgba(0, 0, 0, 0.55)',
       labelBuilder

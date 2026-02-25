@@ -5,6 +5,7 @@ import PhotoUpload from './PhotoUpload';
 import CameraScan from './CameraScan';
 import ScanResult from './ScanResult';
 import Squares from './Squares';
+import { toUiScanResult } from './services/scanResultAdapter';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'photo' | 'camera' | 'result'
@@ -25,7 +26,8 @@ function App() {
   };
 
   const handleScanComplete = (data, imageDataUrl) => {
-    setScannedData(data);
+    const uiResult = toUiScanResult(data);
+    setScannedData(uiResult);
     setScannedImage(imageDataUrl || null);
     setCurrentPage('result');
   };

@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import './ScanResult.css';
+import { getBurmeseClassLabel } from './utils/burmeseClassLabels';
+import { deriveNrcNumberFromDetections } from './utils/nrcNumber';
 
 const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
   const imageRef = useRef(null);
@@ -24,20 +26,35 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     expiryDate: "19.01.2030",
     confidence: 0.95
   };
-  const nrcNumberDisplay =
-    resultData.nrcNumber ||
-    resultData.nrcNumberBurmese ||
-    resultData.rawDigits ||
-    '';
   const hasImage = Boolean(scannedImage);
   const regionBoxes = resultData?.regionBoxes || resultData?.areaBoxes || [];
   const digitBoxes = resultData?.boxes || [];
+  const toText = (value) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    return '';
+  };
+  const derivedNrcNumber = deriveNrcNumberFromDetections(digitBoxes, regionBoxes);
+  const nrcNumberDisplay =
+    toText(resultData.nrcNumber) ||
+    toText(resultData.nrc_number) ||
+    toText(resultData.nrcNumberLatin) ||
+    toText(resultData.nrc_number_latin) ||
+    toText(resultData.nrcNumberBurmese) ||
+    toText(resultData.nrc_number_burmese) ||
+    toText(resultData.rawDigits) ||
+    toText(resultData.raw_digits) ||
+    derivedNrcNumber ||
+    '';
 
   const buildDigitLabel = (box) => {
-    const cls = typeof box.cls === 'number' ? Math.round(box.cls) : null;
+    const cls = typeof box.cls === 'number' ? box.cls : null;
     const conf = typeof box.conf === 'number' ? Math.round(box.conf * 100) : null;
     if (cls === null) return '';
-    return `${cls}${conf !== null ? ` ${conf}%` : ''}`;
+    const label = getBurmeseClassLabel(cls);
+    if (!label) return '';
+    return `${label}${conf !== null ? ` ${conf}%` : ''}`;
   };
 
   const buildRegionLabel = (box) => {
@@ -93,7 +110,7 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     const {
       strokeStyle = '#F8F3CE',
       lineWidth = 2,
-      font = '14px "Inter", system-ui, sans-serif',
+      font = '14px "Myanmar Text", "Noto Sans Myanmar", "Pyidaungsu", "Inter", system-ui, sans-serif',
       labelColor = '#F8F3CE',
       labelBackground = 'rgba(0, 0, 0, 0.55)',
       labelBuilder
