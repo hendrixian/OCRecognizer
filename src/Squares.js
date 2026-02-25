@@ -33,8 +33,8 @@ const Squares = ({
     const drawGrid = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
        // ADD THIS LINE to set background color
-   //ctx.fillStyle = '#EE94B8';  // Change this to your desired color
-    //ctx.fillRect(0, 0, canvas.width, canvas.height);
+   ctx.fillStyle = '#b1b1b1';  // Change this to your desired color
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
       const startX = Math.floor(gridOffset.current.x / squareSize) * squareSize;
       const startY = Math.floor(gridOffset.current.y / squareSize) * squareSize;
 
@@ -66,7 +66,7 @@ const Squares = ({
         Math.sqrt(canvas.width ** 2 + canvas.height ** 2) / 2
       );
       gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
 
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);

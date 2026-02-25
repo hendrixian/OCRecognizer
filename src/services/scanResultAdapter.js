@@ -6,6 +6,7 @@ export const DEFAULT_SCAN_RESULT = {
   motherName: '',
   religion: '',
   height: '',
+  distinctFeature: '',
   bloodType: '',
   bloodTypeConfidence: 0,
   address: '',
@@ -39,11 +40,18 @@ export function toUiScanResult(apiResult) {
       ? apiResult.bloodTypeConfidence
       : DEFAULT_SCAN_RESULT.bloodTypeConfidence;
 
+  const distinctFeature =
+    apiResult.distinctFeature ||
+    apiResult.distinct_feature ||
+    apiResult.feature ||
+    DEFAULT_SCAN_RESULT.distinctFeature;
+
   return {
     ...DEFAULT_SCAN_RESULT,
     ...apiResult,
     nrcNumber,
     confidence,
-    bloodTypeConfidence
+    bloodTypeConfidence,
+    distinctFeature
   };
 }

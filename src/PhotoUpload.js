@@ -54,6 +54,12 @@ const PhotoUpload = ({ onBack, onScanComplete }) => {
     fileInputRef.current.click();
   };
 
+  const handleBrowseClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerFileInput();
+  };
+
   const removeImage = () => {
     setSelectedImage(null);
     if (fileInputRef.current) {
@@ -141,7 +147,7 @@ const PhotoUpload = ({ onBack, onScanComplete }) => {
               </div>
               <p className="drag-text">Drag & drop your image here</p>
               <p className="or-text">or</p>
-              <button className="browse-btn" onClick={triggerFileInput}>
+              <button type="button" className="browse-btn" onClick={handleBrowseClick}>
                 Browse Files
               </button>
             </div>

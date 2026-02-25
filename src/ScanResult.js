@@ -18,6 +18,7 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     motherName: "Daw AYE",
     religion: "",
     height: "",
+    distinctFeature: "",
     address: "No.123, Yangon-Insein Road, Hlaing Township, Yangon",
     issueDate: "20.01.2020",
     expiryDate: "19.01.2030",
@@ -370,22 +371,11 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
                 </div>
               </div>
 
-              {/* Address - Full width */}
+              {/* Distinct Feature - Full width */}
               <div className="info-item full-width">
-                <div className="info-label">Address</div>
-                <div className="info-value">{resultData.address}</div>
-              </div>
-
-              {/* Date Information Grid */}
-              <div className="info-grid">
-                <div className="info-item">
-                  <div className="info-label">Issue Date</div>
-                  <div className="info-value">{resultData.issueDate}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="info-label">Expiry Date</div>
-                  <div className="info-value">{resultData.expiryDate}</div>
+                <div className="info-label">Distinct Feature</div>
+                <div className="info-value">
+                  {resultData.distinctFeature || resultData.feature || resultData.address || '-'}
                 </div>
               </div>
             </div>
