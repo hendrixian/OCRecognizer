@@ -265,6 +265,87 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     if (isZoomed) setIsZoomed(false);
   };
 
+  const csvEscape = (value) => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const buildCsvExport = (rows) => {
+    const headerRow = [
+      'NRC Number',
+      'Full Name',
+      'Date of Birth',
+      "Father's Name",
+      "Mother's Name",
+      'Religion',
+      'Height',
+      'Blood Type',
+      'Blood Type Confidence',
+      'Distinct Feature',
+      'Issue Date',
+      'Expiry Date',
+      'Overall Confidence'
+    ];
+    const header = headerRow.map(csvEscape).join(',');
+    const body = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+    return `${header}\n${body}`;
+  };
+
+  const buildCsvRow = (data) => ([
+    nrcNumberDisplay || '',
+    data.name || '',
+    data.birthDate || '',
+    data.fatherName || '',
+    data.motherName || '',
+    data.religion || '',
+    data.height || '',
+    data.bloodType || '',
+    typeof data.bloodTypeConfidence === 'number' ? (data.bloodTypeConfidence * 100).toFixed(0) + '%' : '',
+    data.distinctFeature || data.feature || data.address || '',
+    data.issueDate || '',
+    data.expiryDate || '',
+    typeof data.confidence === 'number' ? (data.confidence * 100).toFixed(0) + '%' : ''
+  ]);
+
+  const loadSavedRows = () => {
+    try {
+      const raw = localStorage.getItem('nrcScanCsvRows');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveRows = (rows) => {
+    try {
+      localStorage.setItem('nrcScanCsvRows', JSON.stringify(rows));
+    } catch {
+      // ignore storage failures
+    }
+  };
+
+  const handleSaveInformation = () => {
+    const rows = loadSavedRows();
+    rows.push(buildCsvRow(resultData));
+    saveRows(rows);
+    const text = buildCsvExport(rows);
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nrc-scan.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     if (!hasImage) return;
     const handleResize = () => drawOverlay();
@@ -401,7 +482,7 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
 
         {/* Action Buttons */}
         <div className="result-actions">
-          <button className="primary-btn" onClick={() => {/* Handle save/export */}}>
+          <button className="primary-btn" onClick={handleSaveInformation}>
             Save Information
           </button>
           <button className="secondary-btn" onClick={onNewScan}>
