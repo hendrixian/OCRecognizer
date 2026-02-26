@@ -64,7 +64,10 @@ async function startServer() {
     const pythonDir = getPythonDir();
     const env = {
       ...process.env,
-      OCR_MODELS_DIR: getModelsDir()
+      OCR_MODELS_DIR: getModelsDir(),
+      HF_HUB_DISABLE_PROGRESS_BARS: '1',
+      TQDM_DISABLE: '1',
+      TRANSFORMERS_VERBOSITY: 'error'
     };
 
     const args = [

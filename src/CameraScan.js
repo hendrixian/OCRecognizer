@@ -30,8 +30,8 @@ const CameraScan = ({ onBack, onScanComplete }) => {
     lastResult?.regionBoxes || lastResult?.areaBoxes || []
   );
   const nrcNumberDisplay =
-    lastResult?.nrcNumber ||
     lastResult?.nrcNumberBurmese ||
+    lastResult?.nrcNumber ||
     lastResult?.rawDigits ||
     derivedNrcNumber ||
     '';
@@ -124,7 +124,9 @@ const CameraScan = ({ onBack, onScanComplete }) => {
     const ctx = overlay.getContext('2d');
     ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-    drawBoxes(ctx, regionBoxes, {
+    const allRegions = Array.isArray(regionBoxes) ? regionBoxes : [];
+
+    drawBoxes(ctx, allRegions, {
       strokeStyle: '#6EF2C4',
       lineWidth: 3,
       labelColor: '#061A12',

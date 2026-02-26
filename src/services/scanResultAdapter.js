@@ -1,3 +1,5 @@
+import { deriveNrcNumberFromDetections } from '../utils/nrcNumber';
+
 export const DEFAULT_SCAN_RESULT = {
   nrcNumber: '',
   name: '',
@@ -15,13 +17,19 @@ export const DEFAULT_SCAN_RESULT = {
   confidence: 0
 };
 
-import { deriveNrcNumberFromDetections } from '../utils/nrcNumber';
-
 const toText = (value) => {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return '';
+};
+
+const BURMESE_DIGITS = ['၀', '၁', '၂', '၃', '၄', '၅', '၆', '၇', '၈', '၉'];
+
+const toBurmeseDigits = (value) => {
+  const text = toText(value);
+  if (!text) return '';
+  return text.replace(/\d/g, (digit) => BURMESE_DIGITS[Number(digit)] ?? digit);
 };
 
 export function toUiScanResult(apiResult) {
@@ -44,6 +52,13 @@ export function toUiScanResult(apiResult) {
     apiResult?.regionBoxes || apiResult?.areaBoxes || []
   );
 
+  const nrcNumberBurmese =
+    toText(apiResult.nrcNumberBurmese) ||
+    toText(apiResult.nrc_number_burmese) ||
+    toBurmeseDigits(nrcNumber) ||
+    derivedNrcNumber ||
+    '';
+
   const confidence =
     typeof apiResult.confidence === 'number'
       ? apiResult.confidence
@@ -63,7 +78,8 @@ export function toUiScanResult(apiResult) {
   return {
     ...DEFAULT_SCAN_RESULT,
     ...apiResult,
-    nrcNumber: derivedNrcNumber || nrcNumber,
+    nrcNumber: nrcNumber || derivedNrcNumber,
+    nrcNumberBurmese,
     confidence,
     bloodTypeConfidence,
     distinctFeature

@@ -37,12 +37,12 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
   };
   const derivedNrcNumber = deriveNrcNumberFromDetections(digitBoxes, regionBoxes);
   const nrcNumberDisplay =
+    toText(resultData.nrcNumberBurmese) ||
+    toText(resultData.nrc_number_burmese) ||
     toText(resultData.nrcNumber) ||
     toText(resultData.nrc_number) ||
     toText(resultData.nrcNumberLatin) ||
     toText(resultData.nrc_number_latin) ||
-    toText(resultData.nrcNumberBurmese) ||
-    toText(resultData.nrc_number_burmese) ||
     toText(resultData.rawDigits) ||
     toText(resultData.raw_digits) ||
     derivedNrcNumber ||

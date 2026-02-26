@@ -32,7 +32,36 @@ _lock = threading.Lock()
 
 # python/core/recognizer.py
 import os
+from pathlib import Path
+import json
 DEBUG_OCR = os.getenv("OCR_DEBUG", "0") == "1"
+
+AREA_MAP_PATH = Path(__file__).resolve().parents[2] / 'area_map.json'
+BURMESE_DIGIT_SET = set(DEFAULT_BURMESE_DIGITS)
+AREA_LINE_RE = re.compile(r'([၀-၉]{1,2})/([\u1000-\u109F]+)\(နိုင်\)')
+
+
+def _load_area_map(path: Path):
+    mapping = {}
+    if not path.exists():
+        return mapping
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8-sig'))
+        if isinstance(payload, dict):
+            for key, values in payload.items():
+                if not isinstance(key, str):
+                    continue
+                if not isinstance(values, (list, tuple, set)):
+                    continue
+                cleaned = [v for v in values if isinstance(v, str) and v]
+                if cleaned:
+                    mapping[key] = set(cleaned)
+    except Exception:
+        return {}
+    return mapping
+
+
+_BURMESE_LETTER_RE = re.compile(r'^[\u1000-\u109F]+$')
 
 
 class NRCRecognizer:
@@ -51,6 +80,7 @@ class NRCRecognizer:
 
         self.preprocessor = Preprocessor(target_height=IMG_HEIGHT, target_width=IMG_WIDTH)
         self.detector = YOLO(str(self.yolo_path))
+        self.detector_names = getattr(self.detector, 'names', None) or getattr(self.detector.model, 'names', None) or {}
         self.area_detector = None
         self.area_names = {}
         if self.area_yolo_path and self.area_yolo_path.exists():
@@ -95,6 +125,7 @@ class NRCRecognizer:
         self.crnn.eval()
 
         self.idx_to_char = {idx: char for idx, char in enumerate(self.charset)}
+        self.area_map = _load_area_map(AREA_MAP_PATH)
         # python/core/recognizer.py inside NRCRecognizer.__init__
         if DEBUG_OCR:
             print(f"[ocr] charset len={len(self.charset)} first10={self.charset[:10]}")
@@ -153,6 +184,10 @@ class NRCRecognizer:
         if DEBUG_OCR:
             print(f"[ocr] digit_crops={len(digit_crops)} sizes={[c.shape[:2] for c in digit_crops]}")
 
+        corrected_burmese = self._correct_nrc_from_boxes(boxes, region_boxes)
+        if corrected_burmese:
+            nrc_burmese = corrected_burmese
+            nrc_latin = corrected_burmese.translate(BURMESE_TO_LATIN)
 
         return {
             'nrcNumber': nrc_latin,
@@ -604,6 +639,305 @@ class NRCRecognizer:
             'cls': float(cls),
             'label': label
         }
+
+    def _normalize_region_label(self, value):
+        return re.sub(r'[^a-z0-9]+', '', str(value or '').lower())
+
+    def _pick_nrc_region(self, regions):
+        if not regions:
+            return None
+        candidates = []
+        for region in regions:
+            label = self._normalize_region_label(region.get('label'))
+            if label in {'nrcnumber', 'nrcnum', 'nrcno'} or label.startswith('nrcnumber'):
+                candidates.append(region)
+        if not candidates:
+            return None
+        return max(candidates, key=lambda r: float(r.get('conf', 0.0)))
+
+    def _cls_to_label(self, cls_value):
+        if cls_value is None:
+            return ''
+        try:
+            idx = int(round(float(cls_value)))
+        except Exception:
+            return ''
+        label = None
+        if isinstance(self.detector_names, dict):
+            label = self.detector_names.get(idx)
+        elif isinstance(self.detector_names, (list, tuple)):
+            if 0 <= idx < len(self.detector_names):
+                label = self.detector_names[idx]
+        if label is None:
+            return ''
+
+        label = str(label)
+        if label.startswith('digit_'):
+            suffix = label.split('_', 1)[-1]
+            if suffix.isdigit():
+                digit_idx = int(suffix)
+                if 0 <= digit_idx < len(DEFAULT_BURMESE_DIGITS):
+                    return DEFAULT_BURMESE_DIGITS[digit_idx]
+
+        if label in DEFAULT_BURMESE_DIGITS:
+            return label
+        if 'နိုင်' in label or label == CRNN_NAING_TOKEN:
+            return CRNN_NAING_TOKEN
+        if _BURMESE_LETTER_RE.match(label):
+            return label
+        return ''
+
+    def _ordered_labels_from_boxes(self, boxes, region_boxes):
+        if boxes is None or len(boxes) == 0:
+            return []
+        region = self._pick_nrc_region(region_boxes)
+        items = []
+        for box in boxes:
+            x1, y1, x2, y2, conf, cls = box[:6]
+            cx = (x1 + x2) / 2.0
+            cy = (y1 + y2) / 2.0
+            if region:
+                if not (region['x1'] <= cx <= region['x2'] and region['y1'] <= cy <= region['y2']):
+                    continue
+            label = self._cls_to_label(cls)
+            if not label:
+                continue
+            items.append({
+                'label': label,
+                'conf': float(conf),
+                'x1': float(x1),
+                'y1': float(y1),
+                'x2': float(x2),
+                'cx': float(cx)
+            })
+        items.sort(key=lambda item: (item['x1'], item['y1']))
+        return items
+
+    def _extract_prefix(self, labels):
+        digits = []
+        last_digit_index = -1
+        for idx, item in enumerate(labels):
+            label = item['label']
+            if label in BURMESE_DIGIT_SET:
+                if len(digits) < 2:
+                    digits.append(label)
+                    last_digit_index = idx
+                else:
+                    break
+                continue
+            if digits:
+                break
+        prefix = ''.join(digits)
+        return prefix, last_digit_index
+
+    def _score_code(self, code, labels, start_index):
+        if not code:
+            return None
+        score = 0.0
+        matched = 0
+        for item in labels[start_index + 1:]:
+            if matched >= len(code):
+                break
+            if item['label'] == code[matched]:
+                score += item['conf']
+                matched += 1
+        if matched != len(code):
+            return None
+        return score
+
+    def _extract_area_letters(self, labels, start_index, region_boxes):
+        letters = []
+        region = self._pick_nrc_region(region_boxes)
+        region_min = float(region['x1']) if region else None
+        region_max = float(region['x2']) if region else None
+
+        letter_items = []
+        for item in labels[start_index + 1:]:
+            ch = item.get('label', '')
+            if ch == CRNN_NAING_TOKEN:
+                continue
+            if ch in BURMESE_DIGIT_SET:
+                continue
+            if not _BURMESE_LETTER_RE.match(ch):
+                continue
+            letter_items.append(item)
+
+        left_boundary = None
+        right_boundary = None
+        if 0 <= start_index < len(labels):
+            left_boundary = labels[start_index].get('x2') or labels[start_index].get('cx')
+
+        naing_item = None
+        for item in labels[start_index + 1:]:
+            if item.get('label') == CRNN_NAING_TOKEN:
+                naing_item = item
+                break
+        if naing_item is not None:
+            right_boundary = naing_item.get('x1') or naing_item.get('cx')
+
+        if left_boundary is None and region_min is not None:
+            left_boundary = region_min
+        if right_boundary is None and region_max is not None:
+            right_boundary = region_max
+
+        min_cx = max_cx = None
+        if left_boundary is not None and right_boundary is not None and right_boundary > left_boundary:
+            min_cx = left_boundary
+            max_cx = right_boundary
+        elif len(letter_items) >= 2:
+            min_cx = min(item['cx'] for item in letter_items if item.get('cx') is not None)
+            max_cx = max(item['cx'] for item in letter_items if item.get('cx') is not None)
+        elif len(letter_items) == 1 and region_min is not None and region_max is not None:
+            min_cx = region_min
+            max_cx = region_max
+
+        def _position_from_cx(cx):
+            if min_cx is None or max_cx is None or max_cx <= min_cx:
+                return None
+            span = max_cx - min_cx
+            if cx <= min_cx + span / 3:
+                return 0
+            if cx <= min_cx + 2 * span / 3:
+                return 1
+            return 2
+
+        for item in letter_items:
+            pos = _position_from_cx(item.get('cx'))
+            letters.append((item['label'], float(item['conf']), pos, item.get('cx')))
+            if len(letters) >= 3:
+                break
+
+        if len(letters) >= 2:
+            pos_hints = [pos if pos in (0, 1, 2) else None for _ch, _conf, pos, _cx in letters]
+            has_duplicates = len(set([p for p in pos_hints if p is not None])) != len([p for p in pos_hints if p is not None])
+            if has_duplicates or any(p is None for p in pos_hints):
+                letters_sorted = sorted(letters, key=lambda it: (it[3] is None, it[3] if it[3] is not None else 0))
+                reassigned = []
+                for idx, (ch, conf, _pos, cx) in enumerate(letters_sorted[:3]):
+                    reassigned.append((ch, conf, idx, cx))
+                letters = reassigned
+        return letters
+
+    def _extract_suffix_digits(self, labels, start_index):
+        if not labels:
+            return ''
+        naing_index = None
+        for idx in range(start_index + 1, len(labels)):
+            if labels[idx].get('label') == CRNN_NAING_TOKEN:
+                naing_index = idx
+                break
+        if naing_index is None:
+            return ''
+        digits = []
+        for item in labels[naing_index + 1:]:
+            ch = item.get('label')
+            if ch in BURMESE_DIGIT_SET:
+                digits.append(ch)
+        return ''.join(digits)
+
+    def _map_letters_to_positions(self, observed, candidates):
+        mapped = []
+        remaining = set(candidates)
+        for ch, conf, pos_hint, _cx in observed:
+            matched = False
+            if pos_hint not in (0, 1, 2):
+                print(f"[ocr] nrc eliminate skip letter={ch} (no position)")
+                continue
+            positions = (pos_hint,)
+            for pos in positions:
+                next_remaining = {c for c in remaining if len(c) > pos and c[pos] == ch}
+                print(f"[ocr] nrc eliminate try letter={ch} pos={pos+1} remaining={len(next_remaining)}")
+                if next_remaining:
+                    remaining = next_remaining
+                    mapped.append((pos, ch, conf))
+                    print(f"[ocr] nrc eliminate use letter={ch} pos={pos+1} remaining={len(remaining)}")
+                    matched = True
+                    break
+            if not matched:
+                print(f"[ocr] nrc eliminate skip letter={ch} (no matches)")
+
+        # If only one letter is detected and it landed on the rightmost position,
+        # exclude candidates that have that same rightmost letter (user rule).
+        if len(observed) == 1 and mapped and mapped[0][0] == 2:
+            ch = mapped[0][1]
+            next_remaining = {c for c in remaining if len(c) <= 2 or c[2] != ch}
+            print(f"[ocr] nrc eliminate exclude rightmost={ch} remaining={len(next_remaining)}")
+            if next_remaining:
+                remaining = next_remaining
+        return mapped, remaining
+
+    def _correct_nrc_from_boxes(self, boxes, region_boxes):
+        if not self.area_map:
+            return ''
+        labels = self._ordered_labels_from_boxes(boxes, region_boxes)
+        if not labels:
+            print("[ocr] nrc labels=EMPTY")
+            return ''
+        prefix, last_digit_index = self._extract_prefix(labels)
+        if not prefix:
+            ordered_labels = ''.join([item['label'] for item in labels])
+            print(f"[ocr] nrc labels={ordered_labels}")
+            print("[ocr] nrc prefix=EMPTY")
+            return ''
+        candidates = None
+        if len(prefix) >= 2 and prefix[:2] in self.area_map:
+            candidates = self.area_map.get(prefix[:2])
+            prefix = prefix[:2]
+        elif prefix[:1] in self.area_map:
+            candidates = self.area_map.get(prefix[:1])
+            prefix = prefix[:1]
+        if not candidates:
+            ordered_labels = ''.join([item['label'] for item in labels])
+            print(f"[ocr] nrc labels={ordered_labels}")
+            print(f"[ocr] nrc prefix={prefix} candidates=EMPTY")
+            return ''
+
+        # Eliminate candidates based on readable area letters (left->right).
+        observed_letters = self._extract_area_letters(labels, last_digit_index, region_boxes)
+
+        print(f"[ocr] nrc eliminate start count={len(candidates)} candidates={sorted(candidates)}")
+        observed_dump = ','.join([f"{ch}:{pos+1 if pos is not None else '?'}:{conf:.2f}" for ch, conf, pos, _cx in observed_letters]) or 'EMPTY'
+        print(f"[ocr] nrc observed letters={observed_dump}")
+        if observed_letters:
+            direct_code = ''.join([ch for ch, _conf, _pos, _cx in observed_letters])[:3]
+            if len(direct_code) == 3 and direct_code in candidates:
+                print(f"[ocr] nrc direct match={direct_code}")
+                candidates = {direct_code}
+
+        mapped_letters, filtered = self._map_letters_to_positions(observed_letters, candidates)
+        candidates = filtered
+
+        best_code = ''
+        best_score = 0.0
+        best_mismatches = None
+        for code in candidates:
+            if not code:
+                continue
+            mismatches = 0
+            score = 0.0
+            for pos, ch, conf in mapped_letters:
+                if pos >= len(code) or code[pos] != ch:
+                    mismatches += 1
+                else:
+                    score += conf
+            if best_mismatches is None or mismatches < best_mismatches:
+                best_mismatches = mismatches
+                best_score = score
+                best_code = code
+            elif mismatches == best_mismatches and score > best_score:
+                best_score = score
+                best_code = code
+
+        ordered_labels = ''.join([item['label'] for item in labels])
+        print(f"[ocr] nrc labels={ordered_labels}")
+        print(f"[ocr] nrc prefix={prefix} candidates={sorted(candidates)}")
+        if not best_code:
+            print("[ocr] nrc best=EMPTY")
+            return ''
+        print(f"[ocr] nrc best={best_code} score={round(best_score, 3)} mismatches={best_mismatches}")
+
+        suffix_digits = self._extract_suffix_digits(labels, last_digit_index)
+        return f"{prefix}/{best_code}(နိုင်){suffix_digits}"
 
     def _empty_result(self, start_time, boxes, region_boxes, blood_type='', blood_type_conf=0.0, blood_type_box=None):
         elapsed = (time.time() - start_time) * 1000
