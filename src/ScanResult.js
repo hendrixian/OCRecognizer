@@ -257,12 +257,124 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     if (hoveredBox) setHoveredBox(null);
   };
 
-  const handleZoomIn = () => {
-    if (!isZoomed) setIsZoomed(true);
+  const handleImageClick = () => {
+    setIsZoomed((prev) => !prev);
   };
 
-  const handleZoomOut = () => {
-    if (isZoomed) setIsZoomed(false);
+  const csvEscape = (value) => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const buildCsvExport = (rows) => {
+    const headerRow = [
+      'NRC Number',
+      'Full Name',
+      'Date of Birth',
+      "Father's Name",
+      "Mother's Name",
+      'Religion',
+      'Height',
+      'Blood Type',
+      'Blood Type Confidence',
+      'Distinct Feature',
+      'Issue Date',
+      'Expiry Date',
+      'Overall Confidence'
+    ];
+    const header = headerRow.map(csvEscape).join(',');
+    const body = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+    return `${header}\n${body}`;
+  };
+
+  const buildCsvRow = (data) => ([
+    nrcNumberDisplay || '',
+    data.name || '',
+    data.birthDate || '',
+    data.fatherName || '',
+    data.motherName || '',
+    data.religion || '',
+    data.height || '',
+    data.bloodType || '',
+    typeof data.bloodTypeConfidence === 'number' ? (data.bloodTypeConfidence * 100).toFixed(0) + '%' : '',
+    data.distinctFeature || data.feature || data.address || '',
+    data.issueDate || '',
+    data.expiryDate || '',
+    typeof data.confidence === 'number' ? (data.confidence * 100).toFixed(0) + '%' : ''
+  ]);
+
+  const loadSavedRows = () => {
+    try {
+      const raw = localStorage.getItem('nrcScanCsvRows');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveRows = (rows) => {
+    try {
+      localStorage.setItem('nrcScanCsvRows', JSON.stringify(rows));
+    } catch {
+      // ignore storage failures
+    }
+  };
+
+  const handleSaveInformation = () => {
+    const rowData = {
+      nrcNumber: nrcNumberDisplay || '',
+      name: resultData.name || '',
+      birthDate: resultData.birthDate || '',
+      fatherName: resultData.fatherName || '',
+      motherName: resultData.motherName || '',
+      religion: resultData.religion || '',
+      height: resultData.height || '',
+      bloodType: resultData.bloodType || '',
+      bloodTypeConfidence: typeof resultData.bloodTypeConfidence === 'number'
+        ? (resultData.bloodTypeConfidence * 100).toFixed(0) + '%'
+        : '',
+      distinctFeature: resultData.distinctFeature || resultData.feature || resultData.address || '',
+      issueDate: resultData.issueDate || '',
+      expiryDate: resultData.expiryDate || '',
+      confidence: typeof resultData.confidence === 'number'
+        ? (resultData.confidence * 100).toFixed(0) + '%'
+        : ''
+    };
+
+    // In Electron: append directly to one physical CSV file on disk.
+    if (window?.electronAPI?.appendScannedCsv) {
+      window.electronAPI.appendScannedCsv(rowData).then((res) => {
+        if (!res?.ok) {
+          alert(res?.error || 'Failed to save CSV');
+          return;
+        }
+        alert(`Saved to ${res.path}`);
+      }).catch((err) => {
+        alert(err?.message || 'Failed to save CSV');
+      });
+      return;
+    }
+
+    // Browser fallback: re-download merged CSV from local storage rows.
+    const rows = loadSavedRows();
+    rows.push(buildCsvRow(resultData));
+    saveRows(rows);
+    const text = buildCsvExport(rows);
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nrc-scan.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -308,12 +420,9 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
             <div className="result-image-panel">
               <div className="result-image-label">Scanned Image</div>
               <div className="result-image-frame">
-                {isZoomed && (
-                  <div className="result-image-backdrop" onClick={handleZoomOut} />
-                )}
                 <div
                   className={`result-image-wrapper ${isZoomed ? 'zoomed' : ''}`}
-                  onClick={handleZoomIn}
+                  onClick={handleImageClick}
                   onMouseMove={handleMouseMove}
                   onMouseLeave={handleMouseLeave}
                 >
@@ -401,7 +510,7 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
 
         {/* Action Buttons */}
         <div className="result-actions">
-          <button className="primary-btn" onClick={() => {/* Handle save/export */}}>
+          <button className="primary-btn" onClick={handleSaveInformation}>
             Save Information
           </button>
           <button className="secondary-btn" onClick={onNewScan}>

@@ -209,3 +209,62 @@ ipcMain.handle('save-scanned-data', async (event, data) => {
   }
   return false;
 });
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+ipcMain.handle('append-scanned-csv', async (event, rowData) => {
+  try {
+    const targetPath = path.join(app.getPath('documents'), 'nrc-scan.csv');
+    const header = [
+      'NRC Number',
+      'Full Name',
+      'Date of Birth',
+      "Father's Name",
+      "Mother's Name",
+      'Religion',
+      'Height',
+      'Blood Type',
+      'Blood Type Confidence',
+      'Distinct Feature',
+      'Issue Date',
+      'Expiry Date',
+      'Overall Confidence'
+    ];
+
+    const row = [
+      rowData?.nrcNumber || '',
+      rowData?.name || '',
+      rowData?.birthDate || '',
+      rowData?.fatherName || '',
+      rowData?.motherName || '',
+      rowData?.religion || '',
+      rowData?.height || '',
+      rowData?.bloodType || '',
+      rowData?.bloodTypeConfidence || '',
+      rowData?.distinctFeature || '',
+      rowData?.issueDate || '',
+      rowData?.expiryDate || '',
+      rowData?.confidence || ''
+    ];
+
+    const headerLine = `${header.map(csvEscape).join(',')}\n`;
+    const rowLine = `${row.map(csvEscape).join(',')}\n`;
+
+    const hasFile = fs.existsSync(targetPath);
+    if (!hasFile) {
+      fs.writeFileSync(targetPath, headerLine, 'utf8');
+    }
+
+    fs.appendFileSync(targetPath, rowLine, 'utf8');
+    return { ok: true, path: targetPath };
+  } catch (err) {
+    return { ok: false, error: err?.message || 'Failed to append CSV' };
+  }
+});
