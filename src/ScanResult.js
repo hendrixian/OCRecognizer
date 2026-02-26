@@ -331,6 +331,41 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
   };
 
   const handleSaveInformation = () => {
+    const rowData = {
+      nrcNumber: nrcNumberDisplay || '',
+      name: resultData.name || '',
+      birthDate: resultData.birthDate || '',
+      fatherName: resultData.fatherName || '',
+      motherName: resultData.motherName || '',
+      religion: resultData.religion || '',
+      height: resultData.height || '',
+      bloodType: resultData.bloodType || '',
+      bloodTypeConfidence: typeof resultData.bloodTypeConfidence === 'number'
+        ? (resultData.bloodTypeConfidence * 100).toFixed(0) + '%'
+        : '',
+      distinctFeature: resultData.distinctFeature || resultData.feature || resultData.address || '',
+      issueDate: resultData.issueDate || '',
+      expiryDate: resultData.expiryDate || '',
+      confidence: typeof resultData.confidence === 'number'
+        ? (resultData.confidence * 100).toFixed(0) + '%'
+        : ''
+    };
+
+    // In Electron: append directly to one physical CSV file on disk.
+    if (window?.electronAPI?.appendScannedCsv) {
+      window.electronAPI.appendScannedCsv(rowData).then((res) => {
+        if (!res?.ok) {
+          alert(res?.error || 'Failed to save CSV');
+          return;
+        }
+        alert(`Saved to ${res.path}`);
+      }).catch((err) => {
+        alert(err?.message || 'Failed to save CSV');
+      });
+      return;
+    }
+
+    // Browser fallback: re-download merged CSV from local storage rows.
     const rows = loadSavedRows();
     rows.push(buildCsvRow(resultData));
     saveRows(rows);

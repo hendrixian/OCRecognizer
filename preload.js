@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Save data
   saveScannedData: (data) => ipcRenderer.invoke('save-scanned-data', data),
+  appendScannedCsv: (rowData) => ipcRenderer.invoke('append-scanned-csv', rowData),
   
   // Menu events
   onMenuOpenPhoto: (callback) => {
