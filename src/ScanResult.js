@@ -257,12 +257,8 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     if (hoveredBox) setHoveredBox(null);
   };
 
-  const handleZoomIn = () => {
-    if (!isZoomed) setIsZoomed(true);
-  };
-
-  const handleZoomOut = () => {
-    if (isZoomed) setIsZoomed(false);
+  const handleImageClick = () => {
+    setIsZoomed((prev) => !prev);
   };
 
   const csvEscape = (value) => {
@@ -424,12 +420,9 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
             <div className="result-image-panel">
               <div className="result-image-label">Scanned Image</div>
               <div className="result-image-frame">
-                {isZoomed && (
-                  <div className="result-image-backdrop" onClick={handleZoomOut} />
-                )}
                 <div
                   className={`result-image-wrapper ${isZoomed ? 'zoomed' : ''}`}
-                  onClick={handleZoomIn}
+                  onClick={handleImageClick}
                   onMouseMove={handleMouseMove}
                   onMouseLeave={handleMouseLeave}
                 >
