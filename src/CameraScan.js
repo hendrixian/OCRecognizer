@@ -406,7 +406,7 @@ const CameraScan = ({ onBack, onScanComplete }) => {
             onClick={handleUseResult}
             disabled={!nrcNumberDisplay && !bloodTypeDisplay}
           >
-            Use Current Result
+            See Current Result
           </button>
           <button
             className="secondary-btn"
