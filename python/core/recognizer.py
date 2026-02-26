@@ -17,7 +17,9 @@ from core.config import (
     CONF_THRESHOLD,
     AREA_CONF_THRESHOLD,
     BURMESE_DIGITS,
-    BURMESE_TO_LATIN
+    BURMESE_TO_LATIN,
+    CRNN_NAING_PLACEHOLDER,
+    CRNN_NAING_TOKEN
 )
 from core.preprocess import Preprocessor
 from core.crnn import CRNN
@@ -84,6 +86,8 @@ class NRCRecognizer:
             output = self.crnn(image_tensor)
 
         raw_digits = self._ctc_decode(output)
+        if CRNN_NAING_PLACEHOLDER in raw_digits:
+            raw_digits = raw_digits.replace(CRNN_NAING_PLACEHOLDER, CRNN_NAING_TOKEN)
         nrc_burmese = raw_digits
         nrc_latin = raw_digits.translate(BURMESE_TO_LATIN) if raw_digits else ''
 
