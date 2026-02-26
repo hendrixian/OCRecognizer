@@ -16,6 +16,8 @@ from core.config import (
     HIDDEN_SIZE,
     CONF_THRESHOLD,
     AREA_CONF_THRESHOLD,
+    DEFAULT_BURMESE_DIGITS,
+    DEFAULT_CRNN_CHARSET,
     BURMESE_DIGITS,
     BURMESE_TO_LATIN,
     CRNN_NAING_PLACEHOLDER,
@@ -27,6 +29,10 @@ from trocr_blood import read_blood_type
 
 _recognizer = None
 _lock = threading.Lock()
+
+# python/core/recognizer.py
+import os
+DEBUG_OCR = os.getenv("OCR_DEBUG", "0") == "1"
 
 
 class NRCRecognizer:
@@ -53,15 +59,46 @@ class NRCRecognizer:
         elif self.area_yolo_path:
             print(f'[ocr] area model not found: {self.area_yolo_path}')
 
-        self.crnn = CRNN(img_height=IMG_HEIGHT, num_classes=len(BURMESE_DIGITS), hidden_size=HIDDEN_SIZE)
         state = torch.load(str(self.crnn_path), map_location=self.device)
+        if isinstance(state, dict) and 'state_dict' in state:
+            state = state['state_dict']
         if isinstance(state, dict) and any(k.startswith('module.') for k in state.keys()):
             state = {k.replace('module.', ''): v for k, v in state.items()}
+
+        checkpoint_num_classes = None
+        if isinstance(state, dict):
+            fc_weight = state.get('fc.weight')
+            if hasattr(fc_weight, 'shape'):
+                checkpoint_num_classes = int(fc_weight.shape[0]) - 1
+
+        charset = BURMESE_DIGITS
+        if checkpoint_num_classes is not None and checkpoint_num_classes != len(BURMESE_DIGITS):
+            if checkpoint_num_classes == len(DEFAULT_BURMESE_DIGITS):
+                charset = DEFAULT_BURMESE_DIGITS
+            elif checkpoint_num_classes == len(DEFAULT_CRNN_CHARSET):
+                charset = DEFAULT_CRNN_CHARSET
+            else:
+                raise RuntimeError(
+                    f'CRNN checkpoint expects {checkpoint_num_classes} classes, '
+                    f'but OCR_CRNN_CLASSES_PATH provides {len(BURMESE_DIGITS)}. '
+                    'Set OCR_CRNN_CLASSES_PATH / OCR_CRNN_WEIGHTS to a matching pair.'
+                )
+            print(
+                f'[ocr] CRNN classes mismatch: checkpoint={checkpoint_num_classes}, '
+                f'config={len(BURMESE_DIGITS)}. Using {len(charset)}-class charset.'
+            )
+
+        self.charset = charset
+        self.crnn = CRNN(img_height=IMG_HEIGHT, num_classes=len(self.charset), hidden_size=HIDDEN_SIZE)
         self.crnn.load_state_dict(state, strict=True)
         self.crnn.to(self.device)
         self.crnn.eval()
 
-        self.idx_to_char = {idx: char for idx, char in enumerate(BURMESE_DIGITS)}
+        self.idx_to_char = {idx: char for idx, char in enumerate(self.charset)}
+        # python/core/recognizer.py inside NRCRecognizer.__init__
+        if DEBUG_OCR:
+            print(f"[ocr] charset len={len(self.charset)} first10={self.charset[:10]}")
+
 
     def recognize(self, image, conf_threshold=CONF_THRESHOLD):
         start = time.time()
@@ -93,6 +130,29 @@ class NRCRecognizer:
 
         conf = float(np.mean([b[4] for b in boxes])) if len(boxes) else 0.0
         elapsed = (time.time() - start) * 1000
+
+        # python/core/recognizer.py inside NRCRecognizer.recognize
+
+        if DEBUG_OCR:
+            print(f"[ocr] image shape={image.shape}")
+
+        region_boxes = self._detect_regions(image, AREA_CONF_THRESHOLD)
+        if DEBUG_OCR:
+            print(f"[ocr] region_boxes={len(region_boxes)}")
+
+        preprocessed = self.preprocessor.preprocess_full_image(image)
+        boxes = self._detect_boxes(preprocessed, conf_threshold)
+
+        if DEBUG_OCR:
+            print(f"[ocr] yolo boxes={len(boxes)}")
+            if len(boxes):
+                print(f"[ocr] box confs={[round(b[4], 3) for b in boxes]}")
+                print(f"[ocr] box xyxy={[list(map(int, b[:4])) for b in boxes]}")
+
+        digit_crops = self._crop_digits(image, boxes)
+        if DEBUG_OCR:
+            print(f"[ocr] digit_crops={len(digit_crops)} sizes={[c.shape[:2] for c in digit_crops]}")
+
 
         return {
             'nrcNumber': nrc_latin,

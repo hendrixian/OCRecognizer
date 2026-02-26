@@ -15,20 +15,34 @@ export const DEFAULT_SCAN_RESULT = {
   confidence: 0
 };
 
+import { deriveNrcNumberFromDetections } from '../utils/nrcNumber';
+
+const toText = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+};
+
 export function toUiScanResult(apiResult) {
   if (!apiResult || typeof apiResult !== 'object') {
     return { ...DEFAULT_SCAN_RESULT };
   }
 
   const nrcNumber =
-    apiResult.nrcNumber ||
-    apiResult.nrc_number ||
-    apiResult.nrcNumberLatin ||
-    apiResult.nrcNumberBurmese ||
-    apiResult.nrc_number_burmese ||
-    apiResult.rawDigits ||
-    apiResult.raw_digits ||
+    toText(apiResult.nrcNumber) ||
+    toText(apiResult.nrc_number) ||
+    toText(apiResult.nrcNumberLatin) ||
+    toText(apiResult.nrcNumberBurmese) ||
+    toText(apiResult.nrc_number_burmese) ||
+    toText(apiResult.rawDigits) ||
+    toText(apiResult.raw_digits) ||
     '';
+
+  const derivedNrcNumber = deriveNrcNumberFromDetections(
+    apiResult?.boxes || [],
+    apiResult?.regionBoxes || apiResult?.areaBoxes || []
+  );
 
   const confidence =
     typeof apiResult.confidence === 'number'
@@ -49,7 +63,7 @@ export function toUiScanResult(apiResult) {
   return {
     ...DEFAULT_SCAN_RESULT,
     ...apiResult,
-    nrcNumber,
+    nrcNumber: derivedNrcNumber || nrcNumber,
     confidence,
     bloodTypeConfidence,
     distinctFeature

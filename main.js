@@ -219,9 +219,18 @@ function csvEscape(value) {
   return str;
 }
 
+function sanitizeText(value) {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  const cleaned = str.replace(/[^0-9A-Za-z\u1000-\u109F\u1040-\u1049\s/().,:'"-]/g, '');
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
+
 ipcMain.handle('append-scanned-csv', async (event, rowData) => {
   try {
-    const targetPath = path.join(app.getPath('documents'), 'nrc-scan.csv');
+    const baseDir = app.isPackaged ? app.getPath('userData') : app.getAppPath();
+    const targetDir = path.join(baseDir, 'results');
+    const targetPath = path.join(targetDir, 'nrc-scan.csv');
     const header = [
       'NRC Number',
       'Full Name',
@@ -239,24 +248,25 @@ ipcMain.handle('append-scanned-csv', async (event, rowData) => {
     ];
 
     const row = [
-      rowData?.nrcNumber || '',
-      rowData?.name || '',
-      rowData?.birthDate || '',
-      rowData?.fatherName || '',
-      rowData?.motherName || '',
-      rowData?.religion || '',
-      rowData?.height || '',
-      rowData?.bloodType || '',
-      rowData?.bloodTypeConfidence || '',
-      rowData?.distinctFeature || '',
-      rowData?.issueDate || '',
-      rowData?.expiryDate || '',
-      rowData?.confidence || ''
+      sanitizeText(rowData?.nrcNumber),
+      sanitizeText(rowData?.name),
+      sanitizeText(rowData?.birthDate),
+      sanitizeText(rowData?.fatherName),
+      sanitizeText(rowData?.motherName),
+      sanitizeText(rowData?.religion),
+      sanitizeText(rowData?.height),
+      sanitizeText(rowData?.bloodType),
+      sanitizeText(rowData?.bloodTypeConfidence),
+      sanitizeText(rowData?.distinctFeature),
+      sanitizeText(rowData?.issueDate),
+      sanitizeText(rowData?.expiryDate),
+      sanitizeText(rowData?.confidence)
     ];
 
     const headerLine = `${header.map(csvEscape).join(',')}\n`;
     const rowLine = `${row.map(csvEscape).join(',')}\n`;
 
+    fs.mkdirSync(targetDir, { recursive: true });
     const hasFile = fs.existsSync(targetPath);
     if (!hasFile) {
       fs.writeFileSync(targetPath, headerLine, 'utf8');

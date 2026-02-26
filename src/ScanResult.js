@@ -151,6 +151,23 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
     const { clientWidth, clientHeight, naturalWidth, naturalHeight } = img;
     if (!clientWidth || !clientHeight || !naturalWidth || !naturalHeight) return;
 
+    const getContainedSize = () => {
+      const imageRatio = naturalWidth / naturalHeight;
+      const containerRatio = clientWidth / clientHeight;
+      if (imageRatio > containerRatio) {
+        const width = clientWidth;
+        const height = Math.round(width / imageRatio);
+        const offsetX = 0;
+        const offsetY = Math.round((clientHeight - height) / 2);
+        return { width, height, offsetX, offsetY };
+      }
+      const height = clientHeight;
+      const width = Math.round(height * imageRatio);
+      const offsetY = 0;
+      const offsetX = Math.round((clientWidth - width) / 2);
+      return { width, height, offsetX, offsetY };
+    };
+
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(clientWidth * dpr);
     canvas.height = Math.round(clientHeight * dpr);
@@ -166,10 +183,23 @@ const ScanResult = ({ onBack, onNewScan, scannedData, scannedImage }) => {
       return;
     }
 
-    const scaleX = clientWidth / naturalWidth;
-    const scaleY = clientHeight / naturalHeight;
-    const scaledRegions = buildScaledBoxes(regionBoxes, scaleX, scaleY);
-    const scaledDigits = buildScaledBoxes(digitBoxes, scaleX, scaleY);
+    const { width: drawWidth, height: drawHeight, offsetX, offsetY } = getContainedSize();
+    const scaleX = drawWidth / naturalWidth;
+    const scaleY = drawHeight / naturalHeight;
+    const scaledRegions = buildScaledBoxes(regionBoxes, scaleX, scaleY).map((item) => ({
+      ...item,
+      x1: item.x1 + offsetX,
+      x2: item.x2 + offsetX,
+      y1: item.y1 + offsetY,
+      y2: item.y2 + offsetY
+    }));
+    const scaledDigits = buildScaledBoxes(digitBoxes, scaleX, scaleY).map((item) => ({
+      ...item,
+      x1: item.x1 + offsetX,
+      x2: item.x2 + offsetX,
+      y1: item.y1 + offsetY,
+      y2: item.y2 + offsetY
+    }));
 
     overlayStateRef.current = {
       region: scaledRegions,
