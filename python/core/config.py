@@ -7,6 +7,28 @@ MODELS_DIR = Path(os.getenv('OCR_MODELS_DIR', ROOT_DIR / 'models')).resolve()
 YOLO_WEIGHTS = Path(os.getenv('OCR_YOLO_WEIGHTS', MODELS_DIR / 'best.pt')).resolve()
 AREA_YOLO_WEIGHTS = Path(os.getenv('OCR_AREA_YOLO_WEIGHTS', MODELS_DIR / 'best_area.pt')).resolve()
 CRNN_WEIGHTS = Path(os.getenv('OCR_CRNN_WEIGHTS', MODELS_DIR / 'crnn.pth')).resolve()
+DATE_MODELS_DIR = Path(
+    os.getenv('OCR_DATE_MODELS_DIR', ROOT_DIR / 'nrc_date_recognizer' / 'trained_models')
+).resolve()
+DATE_YOLO_WEIGHTS = Path(
+    os.getenv(
+        'OCR_DATE_YOLO_WEIGHTS',
+        DATE_MODELS_DIR / 'detection_model_v6' / 'burmese_nrc_date_detector_v6.pt'
+    )
+).resolve()
+DATE_DAY_MONTH_MODEL = Path(
+    os.getenv(
+        'OCR_DATE_DAY_MONTH_MODEL',
+        DATE_MODELS_DIR / 'day_month_model' / 'day_month_model_v2.keras'
+    )
+).resolve()
+DATE_YEAR_MODEL = Path(
+    os.getenv(
+        'OCR_DATE_YEAR_MODEL',
+        DATE_MODELS_DIR / 'year_model' / 'year_predictor.keras'
+    )
+).resolve()
+DATE_CONF_THRESHOLD = float(os.getenv('OCR_DATE_CONF_THRESHOLD', '0.1'))
 
 IMG_HEIGHT = int(os.getenv('OCR_IMG_HEIGHT', '32'))
 IMG_WIDTH = int(os.getenv('OCR_IMG_WIDTH', '128'))

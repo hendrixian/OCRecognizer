@@ -32,6 +32,12 @@ class ScanResponse(BaseModel):
     nrcNumberBurmese: str
     rawDigits: str
     confidence: float
+    birthDate: Optional[str] = ''
+    birthDateLatin: Optional[str] = ''
+    birthDateConfidence: float = 0.0
+    issueDate: Optional[str] = ''
+    issueDateLatin: Optional[str] = ''
+    issueDateConfidence: float = 0.0
     bloodType: Optional[str] = ''
     bloodTypeConfidence: float = 0.0
     bloodTypeBox: Optional[RegionBox] = None

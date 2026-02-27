@@ -25,6 +25,7 @@ from core.config import (
 )
 from core.preprocess import Preprocessor
 from core.crnn import CRNN
+from core.date_recognizer import NRCDateRecognizer
 from trocr_blood import read_blood_type
 
 _recognizer = None
@@ -126,6 +127,7 @@ class NRCRecognizer:
 
         self.idx_to_char = {idx: char for idx, char in enumerate(self.charset)}
         self.area_map = _load_area_map(AREA_MAP_PATH)
+        self.date_recognizer = NRCDateRecognizer()
         # python/core/recognizer.py inside NRCRecognizer.__init__
         if DEBUG_OCR:
             print(f"[ocr] charset len={len(self.charset)} first10={self.charset[:10]}")
@@ -136,15 +138,51 @@ class NRCRecognizer:
 
         region_boxes = self._detect_regions(image, AREA_CONF_THRESHOLD)
         blood_type, blood_type_conf, blood_type_box = self._recognize_blood_type(image, region_boxes)
+        date_result = None
+        issue_date_result = None
         preprocessed = self.preprocessor.preprocess_full_image(image)
         boxes = self._detect_boxes(preprocessed, conf_threshold)
 
         if len(boxes) == 0:
-            return self._empty_result(start, [], region_boxes, blood_type, blood_type_conf, blood_type_box)
+            date_result = self._recognize_birth_date(image, region_boxes)
+            issue_date_result = self._recognize_issue_date(image, region_boxes)
+            region_boxes = self._merge_region_boxes(region_boxes, date_result.get('regionBoxes'))
+            region_boxes = self._merge_region_boxes(region_boxes, issue_date_result.get('regionBoxes'))
+            return self._empty_result(
+                start,
+                [],
+                region_boxes,
+                blood_type,
+                blood_type_conf,
+                blood_type_box,
+                birth_date=date_result.get('birthDate', ''),
+                birth_date_latin=date_result.get('birthDateLatin', ''),
+                birth_date_conf=date_result.get('birthDateConfidence', 0.0),
+                issue_date=issue_date_result.get('issueDate', ''),
+                issue_date_latin=issue_date_result.get('issueDateLatin', ''),
+                issue_date_conf=issue_date_result.get('issueDateConfidence', 0.0)
+            )
 
         digit_crops = self._crop_digits(image, boxes)
         if not digit_crops:
-            return self._empty_result(start, boxes, region_boxes, blood_type, blood_type_conf, blood_type_box)
+            date_result = self._recognize_birth_date(image, region_boxes)
+            issue_date_result = self._recognize_issue_date(image, region_boxes)
+            region_boxes = self._merge_region_boxes(region_boxes, date_result.get('regionBoxes'))
+            region_boxes = self._merge_region_boxes(region_boxes, issue_date_result.get('regionBoxes'))
+            return self._empty_result(
+                start,
+                boxes,
+                region_boxes,
+                blood_type,
+                blood_type_conf,
+                blood_type_box,
+                birth_date=date_result.get('birthDate', ''),
+                birth_date_latin=date_result.get('birthDateLatin', ''),
+                birth_date_conf=date_result.get('birthDateConfidence', 0.0),
+                issue_date=issue_date_result.get('issueDate', ''),
+                issue_date_latin=issue_date_result.get('issueDateLatin', ''),
+                issue_date_conf=issue_date_result.get('issueDateConfidence', 0.0)
+            )
 
         concat_image = self._concat_crops(digit_crops)
         processed = self.preprocessor.preprocess_for_crnn(concat_image)
@@ -189,11 +227,24 @@ class NRCRecognizer:
             nrc_burmese = corrected_burmese
             nrc_latin = corrected_burmese.translate(BURMESE_TO_LATIN)
 
+        if date_result is None:
+            date_result = self._recognize_birth_date(image, region_boxes)
+        if issue_date_result is None:
+            issue_date_result = self._recognize_issue_date(image, region_boxes)
+        region_boxes = self._merge_region_boxes(region_boxes, date_result.get('regionBoxes'))
+        region_boxes = self._merge_region_boxes(region_boxes, issue_date_result.get('regionBoxes'))
+
         return {
             'nrcNumber': nrc_latin,
             'nrcNumberBurmese': nrc_burmese,
             'rawDigits': raw_digits,
             'confidence': conf,
+            'birthDate': date_result.get('birthDate', ''),
+            'birthDateLatin': date_result.get('birthDateLatin', ''),
+            'birthDateConfidence': date_result.get('birthDateConfidence', 0.0),
+            'issueDate': issue_date_result.get('issueDate', ''),
+            'issueDateLatin': issue_date_result.get('issueDateLatin', ''),
+            'issueDateConfidence': issue_date_result.get('issueDateConfidence', 0.0),
             'bloodType': blood_type,
             'bloodTypeConfidence': blood_type_conf,
             'bloodTypeBox': blood_type_box,
@@ -655,6 +706,80 @@ class NRCRecognizer:
             return None
         return max(candidates, key=lambda r: float(r.get('conf', 0.0)))
 
+    def _pick_birth_date_region(self, regions):
+        if not regions:
+            return None
+        candidates = []
+        for region in regions:
+            label = self._normalize_region_label(region.get('label'))
+            if not label:
+                continue
+            if label in {'dateofbirth', 'birthdate', 'dob', 'dateofbirth1'}:
+                candidates.append(region)
+                continue
+            if 'birth' in label and 'date' in label:
+                candidates.append(region)
+                continue
+        if not candidates:
+            return None
+        return max(candidates, key=lambda r: float(r.get('conf', 0.0)))
+
+    def _pick_issue_date_region(self, regions):
+        if not regions:
+            return None
+        candidates = []
+        for region in regions:
+            label = self._normalize_region_label(region.get('label'))
+            if not label:
+                continue
+            if label in {'date', 'issuedate', 'issue_date', 'issuedate1'}:
+                candidates.append(region)
+                continue
+            if 'issue' in label and 'date' in label:
+                candidates.append(region)
+                continue
+            if label == 'date':
+                candidates.append(region)
+                continue
+        if not candidates:
+            return None
+        return max(candidates, key=lambda r: float(r.get('conf', 0.0)))
+
+    def _merge_region_boxes(self, base, extra):
+        if not extra:
+            return base
+        if not base:
+            return list(extra)
+        return list(base) + list(extra)
+
+    def _recognize_birth_date(self, image, region_boxes):
+        if self.date_recognizer is None:
+            return {
+                'birthDate': '',
+                'birthDateLatin': '',
+                'birthDateConfidence': 0.0,
+                'regionBoxes': []
+            }
+        region = self._pick_birth_date_region(region_boxes)
+        return self.date_recognizer.predict(image, region, label_prefix='date_of_birth')
+
+    def _recognize_issue_date(self, image, region_boxes):
+        if self.date_recognizer is None:
+            return {
+                'issueDate': '',
+                'issueDateLatin': '',
+                'issueDateConfidence': 0.0,
+                'regionBoxes': []
+            }
+        region = self._pick_issue_date_region(region_boxes)
+        result = self.date_recognizer.predict(image, region, label_prefix='issue_date')
+        return {
+            'issueDate': result.get('birthDate', ''),
+            'issueDateLatin': result.get('birthDateLatin', ''),
+            'issueDateConfidence': result.get('birthDateConfidence', 0.0),
+            'regionBoxes': result.get('regionBoxes', [])
+        }
+
     def _cls_to_label(self, cls_value):
         if cls_value is None:
             return ''
@@ -939,13 +1064,33 @@ class NRCRecognizer:
         suffix_digits = self._extract_suffix_digits(labels, last_digit_index)
         return f"{prefix}/{best_code}(နိုင်){suffix_digits}"
 
-    def _empty_result(self, start_time, boxes, region_boxes, blood_type='', blood_type_conf=0.0, blood_type_box=None):
+    def _empty_result(
+        self,
+        start_time,
+        boxes,
+        region_boxes,
+        blood_type='',
+        blood_type_conf=0.0,
+        blood_type_box=None,
+        birth_date='',
+        birth_date_latin='',
+        birth_date_conf=0.0,
+        issue_date='',
+        issue_date_latin='',
+        issue_date_conf=0.0
+    ):
         elapsed = (time.time() - start_time) * 1000
         return {
             'nrcNumber': '',
             'nrcNumberBurmese': '',
             'rawDigits': '',
             'confidence': 0.0,
+            'birthDate': birth_date,
+            'birthDateLatin': birth_date_latin,
+            'birthDateConfidence': float(birth_date_conf),
+            'issueDate': issue_date,
+            'issueDateLatin': issue_date_latin,
+            'issueDateConfidence': float(issue_date_conf),
             'bloodType': blood_type,
             'bloodTypeConfidence': float(blood_type_conf),
             'bloodTypeBox': blood_type_box,
