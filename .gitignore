@@ -7,3 +7,4 @@ simulate/
 models/
 *.safetensors
 nrc_date_recoginizer/trained_models/
+nrc-scan.csv
