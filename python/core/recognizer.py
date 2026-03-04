@@ -1,12 +1,21 @@
-﻿import threading
+import sys
+import threading
 import time
 import re
 from collections import defaultdict
+from pathlib import Path
 import numpy as np
 import torch
 import cv2
 from PIL import Image
 from ultralytics import YOLO
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+try:
+    from nrc_date_recognizer.nrc_date_recognizer import predict_burmese_nrc_date
+except Exception:
+    predict_burmese_nrc_date = None
 from core.config import (
     YOLO_WEIGHTS,
     AREA_YOLO_WEIGHTS,
@@ -144,8 +153,20 @@ class NRCRecognizer:
         boxes = self._detect_boxes(preprocessed, conf_threshold)
 
         if len(boxes) == 0:
-            date_result = self._recognize_birth_date(image, region_boxes)
-            issue_date_result = self._recognize_issue_date(image, region_boxes)
+            birth_b, birth_l, birth_c = self._recognize_date_via_nrc_module(
+                image, region_boxes, ['date_of_birth', 'dateofbirth', 'birthdate', 'dob']
+            )
+            issue_b, issue_l, issue_c = self._recognize_date_via_nrc_module(
+                image, region_boxes, ['date', 'issuedate', 'issue_date']
+            )
+            date_result = {
+                'birthDate': birth_b, 'birthDateLatin': birth_l, 'birthDateConfidence': birth_c,
+                'regionBoxes': []
+            } if (birth_b or birth_l) else self._recognize_birth_date(image, region_boxes)
+            issue_date_result = {
+                'issueDate': issue_b, 'issueDateLatin': issue_l, 'issueDateConfidence': issue_c,
+                'regionBoxes': []
+            } if (issue_b or issue_l) else self._recognize_issue_date(image, region_boxes)
             region_boxes = self._merge_region_boxes(region_boxes, date_result.get('regionBoxes'))
             region_boxes = self._merge_region_boxes(region_boxes, issue_date_result.get('regionBoxes'))
             return self._empty_result(
@@ -165,8 +186,20 @@ class NRCRecognizer:
 
         digit_crops = self._crop_digits(image, boxes)
         if not digit_crops:
-            date_result = self._recognize_birth_date(image, region_boxes)
-            issue_date_result = self._recognize_issue_date(image, region_boxes)
+            birth_b, birth_l, birth_c = self._recognize_date_via_nrc_module(
+                image, region_boxes, ['date_of_birth', 'dateofbirth', 'birthdate', 'dob']
+            )
+            issue_b, issue_l, issue_c = self._recognize_date_via_nrc_module(
+                image, region_boxes, ['date', 'issuedate', 'issue_date']
+            )
+            date_result = {
+                'birthDate': birth_b, 'birthDateLatin': birth_l, 'birthDateConfidence': birth_c,
+                'regionBoxes': []
+            } if (birth_b or birth_l) else self._recognize_birth_date(image, region_boxes)
+            issue_date_result = {
+                'issueDate': issue_b, 'issueDateLatin': issue_l, 'issueDateConfidence': issue_c,
+                'regionBoxes': []
+            } if (issue_b or issue_l) else self._recognize_issue_date(image, region_boxes)
             region_boxes = self._merge_region_boxes(region_boxes, date_result.get('regionBoxes'))
             region_boxes = self._merge_region_boxes(region_boxes, issue_date_result.get('regionBoxes'))
             return self._empty_result(
@@ -228,9 +261,31 @@ class NRCRecognizer:
             nrc_latin = corrected_burmese.translate(BURMESE_TO_LATIN)
 
         if date_result is None:
-            date_result = self._recognize_birth_date(image, region_boxes)
+            birth_burmese, birth_latin, birth_conf = self._recognize_date_via_nrc_module(
+                image, region_boxes, ['date_of_birth', 'dateofbirth', 'birthdate', 'dob']
+            )
+            if birth_burmese or birth_latin:
+                date_result = {
+                    'birthDate': birth_burmese,
+                    'birthDateLatin': birth_latin,
+                    'birthDateConfidence': birth_conf,
+                    'regionBoxes': []
+                }
+            else:
+                date_result = self._recognize_birth_date(image, region_boxes)
         if issue_date_result is None:
-            issue_date_result = self._recognize_issue_date(image, region_boxes)
+            issue_burmese, issue_latin, issue_conf = self._recognize_date_via_nrc_module(
+                image, region_boxes, ['date', 'issuedate', 'issue_date']
+            )
+            if issue_burmese or issue_latin:
+                issue_date_result = {
+                    'issueDate': issue_burmese,
+                    'issueDateLatin': issue_latin,
+                    'issueDateConfidence': issue_conf,
+                    'regionBoxes': []
+                }
+            else:
+                issue_date_result = self._recognize_issue_date(image, region_boxes)
         region_boxes = self._merge_region_boxes(region_boxes, date_result.get('regionBoxes'))
         region_boxes = self._merge_region_boxes(region_boxes, issue_date_result.get('regionBoxes'))
 
@@ -744,6 +799,47 @@ class NRCRecognizer:
         if not candidates:
             return None
         return max(candidates, key=lambda r: float(r.get('conf', 0.0)))
+
+    def _extract_crop_for_date_label(self, image, region_boxes, normalized_labels):
+        """Extract crop from image for a region matching given labels. Returns numpy crop or None."""
+        if image is None or not region_boxes:
+            return None
+        candidates = []
+        for box in region_boxes:
+            label = self._normalize_region_label(box.get('label'))
+            if not label:
+                continue
+            if label in normalized_labels:
+                candidates.append(box)
+                continue
+            if any(lbl in label for lbl in normalized_labels):
+                candidates.append(box)
+        if not candidates:
+            return None
+        target = max(candidates, key=lambda b: float(b.get('conf', 0.0)))
+        h, w = image.shape[:2]
+        pad = max(4, int(min(w, h) * 0.03))
+        x1 = max(0, int(target['x1']) - pad)
+        y1 = max(0, int(target['y1']) - pad)
+        x2 = min(w, int(target['x2']) + pad)
+        y2 = min(h, int(target['y2']) + pad)
+        if x2 <= x1 or y2 <= y1:
+            return None
+        crop = image[y1:y2, x1:x2]
+        return crop if crop.size > 0 else None
+
+    def _recognize_date_via_nrc_module(self, image, region_boxes, labels):
+        """Call predict_burmese_nrc_date on crop for region matching labels. Returns (date, date_latin, conf)."""
+        if predict_burmese_nrc_date is None:
+            return '', '', 0.0
+        crop = self._extract_crop_for_date_label(image, region_boxes, labels)
+        if crop is None:
+            return '', '', 0.0
+        try:
+            date_burmese, date_latin, conf = predict_burmese_nrc_date(crop)
+            return date_burmese or '', date_latin or '', float(conf or 0.0)
+        except Exception:
+            return '', '', 0.0
 
     def _merge_region_boxes(self, base, extra):
         if not extra:

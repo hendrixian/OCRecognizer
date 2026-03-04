@@ -54,6 +54,9 @@ DEFAULT_CRNN_CHARSET = (
 CRNN_CLASSES_PATH = Path(
     os.getenv('OCR_CRNN_CLASSES_PATH', MODELS_DIR / 'charset_39.txt')
 ).resolve()
+TROCR_BLOOD_MODEL = Path(
+    os.getenv('OCR_TROCR_BLOOD_MODEL', MODELS_DIR / 'myanmar_bloodtype_thresholded')
+).resolve()
 
 
 def _load_crnn_classes(path):

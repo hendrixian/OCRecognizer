@@ -49,7 +49,7 @@ def get_detection_coordinates(date_image):
     inference_img = cv2.resize(image, (512, 512))
     detected_result = detection_model.predict(
         source=inference_img,
-        conf=0.1,
+        conf=0.5,
         imgsz=512,
         verbose=False
     )
