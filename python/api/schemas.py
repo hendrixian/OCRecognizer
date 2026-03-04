@@ -43,5 +43,6 @@ class ScanResponse(BaseModel):
     bloodTypeBox: Optional[RegionBox] = None
     boxes: List[Box]
     regionBoxes: List[RegionBox] = Field(default_factory=list)
+    dateDebug: Optional[dict] = None
     inferenceMs: float
     model: dict

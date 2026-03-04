@@ -1,6 +1,7 @@
 ﻿import threading
 import time
 import re
+import importlib.util
 from collections import defaultdict
 import numpy as np
 import torch
@@ -128,6 +129,16 @@ class NRCRecognizer:
         self.idx_to_char = {idx: char for idx, char in enumerate(self.charset)}
         self.area_map = _load_area_map(AREA_MAP_PATH)
         self.date_recognizer = NRCDateRecognizer()
+        self.date_debug = {
+            'externalModulePath': str(Path(__file__).resolve().parents[2] / 'models' / 'nrc_date_recognizer' / 'nrc_date_recognizer.py'),
+            'externalModuleFound': False,
+            'externalPredictorLoaded': False,
+            'externalDebugStatus': None,
+            'externalLastError': '',
+            'externalUsedForBirthDate': False,
+            'externalUsedForIssueDate': False
+        }
+        self.external_date_predictor = self._load_external_date_predictor()
         # python/core/recognizer.py inside NRCRecognizer.__init__
         if DEBUG_OCR:
             print(f"[ocr] charset len={len(self.charset)} first10={self.charset[:10]}")
@@ -135,6 +146,9 @@ class NRCRecognizer:
 
     def recognize(self, image, conf_threshold=CONF_THRESHOLD):
         start = time.time()
+        self.date_debug['externalUsedForBirthDate'] = False
+        self.date_debug['externalUsedForIssueDate'] = False
+        self.date_debug['externalLastError'] = ''
 
         region_boxes = self._detect_regions(image, AREA_CONF_THRESHOLD)
         blood_type, blood_type_conf, blood_type_box = self._recognize_blood_type(image, region_boxes)
@@ -250,6 +264,7 @@ class NRCRecognizer:
             'bloodTypeBox': blood_type_box,
             'boxes': [self._box_to_dict(b) for b in boxes],
             'regionBoxes': region_boxes,
+            'dateDebug': dict(self.date_debug),
             'inferenceMs': round(elapsed, 2),
             'model': {
                 'detector': self.yolo_path.name,
@@ -752,7 +767,101 @@ class NRCRecognizer:
             return list(extra)
         return list(base) + list(extra)
 
+    def _load_external_date_predictor(self):
+        module_path = Path(__file__).resolve().parents[2] / 'models' / 'nrc_date_recognizer' / 'nrc_date_recognizer.py'
+        self.date_debug['externalModulePath'] = str(module_path)
+        self.date_debug['externalModuleFound'] = module_path.exists()
+        if not module_path.exists():
+            self.date_debug['externalPredictorLoaded'] = False
+            self.date_debug['externalLastError'] = 'external module file not found'
+            if DEBUG_OCR:
+                print(f'[ocr] external date module not found: {module_path}')
+            return None
+
+        try:
+            spec = importlib.util.spec_from_file_location('external_nrc_date_recognizer', str(module_path))
+            if spec is None or spec.loader is None:
+                return None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            predictor = getattr(module, 'predict_burmese_nrc_date_from_region', None)
+            debug_fn = getattr(module, 'get_debug_status', None)
+            if callable(debug_fn):
+                try:
+                    self.date_debug['externalDebugStatus'] = debug_fn()
+                except Exception:
+                    self.date_debug['externalDebugStatus'] = None
+            if predictor is None:
+                self.date_debug['externalPredictorLoaded'] = False
+                self.date_debug['externalLastError'] = 'predict_burmese_nrc_date_from_region missing'
+                if DEBUG_OCR:
+                    print('[ocr] external date module missing predict_burmese_nrc_date_from_region')
+                return None
+            self.date_debug['externalPredictorLoaded'] = True
+            self.date_debug['externalLastError'] = ''
+            print(f"[ocr] external date predictor loaded: {module_path}")
+            return predictor
+        except Exception as exc:
+            self.date_debug['externalPredictorLoaded'] = False
+            self.date_debug['externalLastError'] = str(exc)
+            if DEBUG_OCR:
+                print(f'[ocr] failed to load external date module: {exc}')
+            print(f'[ocr] failed to load external date module: {exc}')
+            return None
+
+    def _predict_date_with_external_model(self, image, region, label_prefix, result_key):
+        if self.external_date_predictor is None or region is None:
+            if region is None:
+                self.date_debug['externalLastError'] = f'no region for {label_prefix}'
+            return None
+        print(
+            f"[ocr] external date call label_prefix={label_prefix} "
+            f"region=({region.get('x1')},{region.get('y1')},{region.get('x2')},{region.get('y2')}) "
+            f"label={region.get('label')}"
+        )
+        try:
+            external = self.external_date_predictor(image, region=region, label_prefix=label_prefix, conf=0.1)
+        except Exception as exc:
+            self.date_debug['externalLastError'] = str(exc)
+            if DEBUG_OCR:
+                print(f'[ocr] external date prediction failed: {exc}')
+            return None
+
+        date_burmese = (external or {}).get('dateBurmese', '')
+        if not date_burmese:
+            self.date_debug['externalLastError'] = 'external model returned empty date'
+            print(f"[ocr] external date empty label_prefix={label_prefix}")
+            return None
+        print(f"[ocr] external date success label_prefix={label_prefix} value={date_burmese}")
+
+        if result_key == 'birth':
+            self.date_debug['externalUsedForBirthDate'] = True
+            return {
+                'birthDate': date_burmese,
+                'birthDateLatin': (external or {}).get('dateLatin', ''),
+                'birthDateConfidence': float((external or {}).get('confidence', 0.0)),
+                'regionBoxes': (external or {}).get('regionBoxes', [])
+            }
+
+        self.date_debug['externalUsedForIssueDate'] = True
+        return {
+            'issueDate': date_burmese,
+            'issueDateLatin': (external or {}).get('dateLatin', ''),
+            'issueDateConfidence': float((external or {}).get('confidence', 0.0)),
+            'regionBoxes': (external or {}).get('regionBoxes', [])
+        }
+
     def _recognize_birth_date(self, image, region_boxes):
+        region = self._pick_birth_date_region(region_boxes)
+        external_result = self._predict_date_with_external_model(
+            image,
+            region,
+            label_prefix='date_of_birth',
+            result_key='birth'
+        )
+        if external_result is not None:
+            return external_result
+
         if self.date_recognizer is None:
             return {
                 'birthDate': '',
@@ -760,10 +869,19 @@ class NRCRecognizer:
                 'birthDateConfidence': 0.0,
                 'regionBoxes': []
             }
-        region = self._pick_birth_date_region(region_boxes)
         return self.date_recognizer.predict(image, region, label_prefix='date_of_birth')
 
     def _recognize_issue_date(self, image, region_boxes):
+        region = self._pick_issue_date_region(region_boxes)
+        external_result = self._predict_date_with_external_model(
+            image,
+            region,
+            label_prefix='issue_date',
+            result_key='issue'
+        )
+        if external_result is not None:
+            return external_result
+
         if self.date_recognizer is None:
             return {
                 'issueDate': '',
@@ -771,7 +889,6 @@ class NRCRecognizer:
                 'issueDateConfidence': 0.0,
                 'regionBoxes': []
             }
-        region = self._pick_issue_date_region(region_boxes)
         result = self.date_recognizer.predict(image, region, label_prefix='issue_date')
         return {
             'issueDate': result.get('birthDate', ''),
@@ -1096,6 +1213,7 @@ class NRCRecognizer:
             'bloodTypeBox': blood_type_box,
             'boxes': [self._box_to_dict(b) for b in boxes] if boxes else [],
             'regionBoxes': region_boxes if region_boxes else [],
+            'dateDebug': dict(self.date_debug),
             'inferenceMs': round(elapsed, 2),
             'model': {
                 'detector': self.yolo_path.name,
