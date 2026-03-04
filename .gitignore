@@ -6,5 +6,8 @@ dataset/
 simulate/
 models/
 *.safetensors
-nrc_date_recoginizer/trained_models/
+nrc_date_recognizer/trained_models
 nrc-scan.csv
+OCR3_CRNN.ipynb
+OCR3_YOLO.ipynb
+area_map.txt
