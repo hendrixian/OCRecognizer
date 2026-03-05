@@ -1,0 +1,3 @@
+image_path,gt_nrc,pred_nrc,nrc_ok,gt_birth_date,pred_birth_date,birth_date_ok,gt_issue_date,pred_issue_date,issue_date_ok,gt_blood,pred_blood,blood_ok,strict_ok,nrc_conf,birth_conf,issue_conf,blood_conf
+D:\Projects\OCRecognizer\dataset\images\val\IMG_2120190.jpg,၂/လကန(နိုင်)၁၂၀၁၉၀,၂/လကန(နိုင်)၁၂၁၀၀၀,False,၂၇.၀၂.၂၀၀၄,၂၅.၁၈.၁၈၂၁,False,၉.၁၁.၂၀၂၃,,False,အေ,အေ,True,False,0.6926246285438538,0.7644322762886683,0.0,0.7486430257558823
+D:\Projects\OCRecognizer\dataset\images\train\IMG_7226471.jpg,၇/တငန(နိုင်)၂၂၆၄၇၁,၇/တငန(နိုင်)၂၂၆၄၇၁,True,၂၈.၁၁.၂၀၀၃,၁၈.၁၅.၁၃၅၄,False,၁၆.၀၅.၂၀၁၉,၁၆.၁၆.၅၀၉၆,False,အေ,အေ,True,False,0.8181228041648865,0.7724278072516123,0.9440420319636663,0.818354070186615

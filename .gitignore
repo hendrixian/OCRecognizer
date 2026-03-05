@@ -4,7 +4,7 @@ __pycache__/
 .env
 dataset/
 simulate/
-models/
+models/myanmar_bloodtype_thresholded
 *.safetensors
 nrc_date_recognizer/trained_models
 nrc-scan.csv
